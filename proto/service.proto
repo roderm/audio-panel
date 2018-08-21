@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+option go_package = "github.com/roderm/audio-panel/proto";
+
+service AVRService {
+    rpc GetAVRs(null) returns (stream AVR);
+    rpc Power(AVR_PowerToggle) returns (AVR);
+    rpc UpdateZone(ZoneUpdate) returns (ZoneUpdate);
+    rpc Subscribe(AVR) returns (stream AVR);
+}
+
+message null {
+}
+message AVR {
+    message Zone {
+        bool State = 1;
+        string Name = 2;
+        float Volume = 3;
+        bool isMain = 4;
+        int32 Source = 5;
+        bool SyncVol = 6;
+        bool SyncSrc = 7;
+    }
+    
+    bool Power = 1;
+    map<int32, Zone> Zones = 2;
+    map<int32, string> InputSources = 3;
+    string IP = 4;
+}
+message AVR_PowerToggle {
+    string IP = 1;
+    bool On = 2;
+}
+message ZoneUpdate {
+    string AVR_IP = 1;
+    string Zone_Name = 2;
+    bool State = 3;
+    int32 Volume = 4;
+    int32 Source = 5;
+    bool SyncVol = 6;
+    bool SyncSrc = 7;
+}
