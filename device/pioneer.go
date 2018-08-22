@@ -8,16 +8,16 @@ import (
 	"strconv"
 )
 
-const MaxVol = 160 // 185
-const MaxHZ = 80
+const maxVol = 160 // 185
+const maxHZ = 80
 
 type PioneerDevice struct {
-	device     pb.AVR
-	nc         *telnet.PioneerCaller
-	updateFunc func()
+	device      pb.AVR
+	nc          *telnet.PioneerCaller
+	updateFuncs []func()
 }
 
-func NewPioneerDevice(ip string) *PioneerDevice {
+func NewPioneerDevice(ip string) IDevice {
 	p := PioneerDevice{}
 	p.nc, _ = telnet.NewPioneerCaller(ip, 8102)
 	p.device = pb.AVR{
@@ -42,9 +42,7 @@ func (d *PioneerDevice) initCommands() {
 	d.startListener()
 	d.nc.Send("?V")
 	d.nc.Send("?PWR")
-
-	/*d.nc.Send("?ZV")
-	d.nc.Send("?YV")*/
+	d.nc.Send("?HZV")
 }
 
 func (d *PioneerDevice) SetPower(on bool) {
@@ -70,23 +68,23 @@ func (d *PioneerDevice) Mute(zone int32, on bool) {
 	}
 }
 
-func (d *PioneerDevice) SetSource(zone string, src string) {
+func (d *PioneerDevice) SetSource(zone int32, src int32) {
 
 }
 
 func (d *PioneerDevice) SetVolume(zone int32, volume int32) {
 	switch zone {
 	case 0:
-		vol := int(float32(MaxVol*volume)/100) - 1
+		vol := int(float32(maxVol*volume)/100) - 1
 		d.nc.Send(fmt.Sprintf("%03dVL", vol))
 	case 1:
-		vol := int(float32(MaxHZ*volume) / 100)
+		vol := int(float32(maxHZ*volume) / 100)
 		d.nc.Send(fmt.Sprintf("%02dHZV", vol))
 	}
 }
 
-func (d *PioneerDevice) OnUpdateNotifier(fn func()) {
-	d.updateFunc = fn
+func (d *PioneerDevice) OnUpdate(fn func()) {
+	d.updateFuncs = append(d.updateFuncs, fn)
 }
 func (d *PioneerDevice) GetAvr() *pb.AVR {
 	return &d.device
@@ -104,16 +102,20 @@ func (d *PioneerDevice) startListener() {
 			case "PWR":
 				d.device.Power = toBool(VALUE)
 			case "VOL": // Main-Zone Volume
-				d.device.Zones[0].Volume = (float32(100) / float32(MaxVol)) * float32(toInt(VALUE))
+				d.device.Zones[0].Volume = int32(float32((toInt(VALUE)+1)*100) / maxVol)
 			case "XV": // Zone 2 Volume
-				d.device.Zones[1].Volume = (float32(100) / float32(MaxVol)) * float32(toInt(VALUE))
+				d.device.Zones[1].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
 			case "YV": // Zone 3 Volume
-				d.device.Zones[2].Volume = (float32(100) / float32(MaxVol)) * float32(toInt(VALUE))
+				// d.device.Zones[2].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
 			default:
 				fmt.Printf("Unknown command received %s \n", COMMAND)
 				break
 			}
-			//go d.updateFunc()
+			go func() {
+				for _, fn := range d.updateFuncs {
+					fn()
+				}
+			}()
 		}
 	}()
 }

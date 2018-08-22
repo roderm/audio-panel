@@ -1,6 +1,6 @@
 import React from "react";
-import WebsocketApi from '../js/websocket.api.js'
 import AvrReceiver from "./AvrReceiver.jsx"
+
 class App extends React.Component {
     constructor(props){
         super(props)
@@ -10,8 +10,10 @@ class App extends React.Component {
         }
     }
     componentDidMount() {
-        this.ws = new WebsocketApi("ws://localhost:3000/api")
-        this.ws.rx("sayhello").then(console.log);
+        
+        let ws = new WebSocket("ws://localhost:3000/api")
+        console.log("asdf")
+
         /*this.ws = new WebSocket('ws://localhost:3000/devices')
         this.ws.onmessage = e => this.setState({ AvrDevices: Object.values(JSON.parse(e.data)) })
         this.ws.onerror = e => this.setState({ error: 'WebSocket error' })
