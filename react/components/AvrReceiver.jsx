@@ -1,11 +1,12 @@
 import React from "react";
 
 class AvrReceiver extends React.Component {
-    constructor(props){
+    constructor(props) {
         super(props)
+        
     }
-    render(){
-        return(
+    render() {
+        return (
             <div>
                 <h4>{this.props.receiver.IP}</h4>
                 <p>Zones</p>

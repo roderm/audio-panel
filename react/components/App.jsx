@@ -1,4 +1,5 @@
 import React from "react";
+import WebsocketApi from '../js/websocket.api.js'
 import AvrReceiver from "./AvrReceiver.jsx"
 class App extends React.Component {
     constructor(props){
@@ -9,10 +10,12 @@ class App extends React.Component {
         }
     }
     componentDidMount() {
-        this.ws = new WebSocket('ws://localhost:3000/devices')
+        this.ws = new WebsocketApi("ws://localhost:3000/api")
+        this.ws.rx("sayhello").then(console.log);
+        /*this.ws = new WebSocket('ws://localhost:3000/devices')
         this.ws.onmessage = e => this.setState({ AvrDevices: Object.values(JSON.parse(e.data)) })
         this.ws.onerror = e => this.setState({ error: 'WebSocket error' })
-        this.ws.onclose = e => !e.wasClean && this.setState({ error: `WebSocket error: ${e.code} ${e.reason}` })
+        this.ws.onclose = e => !e.wasClean && this.setState({ error: `WebSocket error: ${e.code} ${e.reason}` })*/
       }    
     componentWillUnmount() {
       this.ws.close()
