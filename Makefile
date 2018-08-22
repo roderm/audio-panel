@@ -4,5 +4,5 @@ generate-proto:
 js-gen:
 	NODE_ENV=production webpack -p --progress
 dev:
-	make js-gen
+	NODE_ENV=development webpack -d --watch --inspect &
 	go run main.go
