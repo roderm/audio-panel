@@ -1,6 +1,7 @@
 package device
 
 import (
+	"context"
 	"fmt"
 	pb "github.com/roderm/audio-panel/proto"
 	"github.com/roderm/audio-panel/telnet"
@@ -12,14 +13,17 @@ const maxVol = 160 // 185
 const maxHZ = 80
 
 type PioneerDevice struct {
+	ctx         context.Context
 	device      pb.AVR
 	nc          *telnet.PioneerCaller
-	updateFuncs []func()
+	updateFuncs []func(*pb.AVR)
 }
 
-func NewPioneerDevice(ip string) IDevice {
-	p := PioneerDevice{}
-	p.nc, _ = telnet.NewPioneerCaller(ip, 8102)
+func NewPioneerDevice(ctx context.Context, ip string) IDevice {
+	p := PioneerDevice{
+		ctx: ctx,
+	}
+	p.nc, _ = telnet.NewPioneerCaller(ctx, ip, 8102)
 	p.device = pb.AVR{
 		IP:    ip,
 		Zones: make(map[int32]*pb.AVR_Zone),
@@ -28,11 +32,13 @@ func NewPioneerDevice(ip string) IDevice {
 		IsMain: true,
 		Name:   "main",
 		Volume: 80,
+		Muted:  false,
 	}
 	p.device.Zones[1] = &pb.AVR_Zone{
 		IsMain: true,
 		Name:   "hdzone",
 		Volume: 80,
+		Muted:  false,
 	}
 	p.initCommands()
 	return &p
@@ -40,11 +46,18 @@ func NewPioneerDevice(ip string) IDevice {
 
 func (d *PioneerDevice) initCommands() {
 	d.startListener()
-	d.nc.Send("?V")
-	d.nc.Send("?PWR")
-	d.nc.Send("?HZV")
+	go func() {
+		d.nc.Send("?V")
+		d.nc.Send("?PWR")
+		d.nc.Send("?HZV")
+		d.nc.Send("?M")
+		d.nc.Send("?HZM")
+	}()
 }
 
+func (d *PioneerDevice) Reachable() bool {
+	return true
+}
 func (d *PioneerDevice) SetPower(on bool) {
 	if on {
 		d.nc.Send("PWR1")
@@ -83,7 +96,7 @@ func (d *PioneerDevice) SetVolume(zone int32, volume int32) {
 	}
 }
 
-func (d *PioneerDevice) OnUpdate(fn func()) {
+func (d *PioneerDevice) OnUpdate(fn func(*pb.AVR)) {
 	d.updateFuncs = append(d.updateFuncs, fn)
 }
 func (d *PioneerDevice) GetAvr() *pb.AVR {
@@ -94,28 +107,35 @@ func (d *PioneerDevice) startListener() {
 	d.nc.StartListen()
 	go func() {
 		for {
-			cmd := <-d.nc.RecCommands
-			var expression = regexp.MustCompile(`(?P<COMMAND>^[A-Z]+[\d]??[A-Z]+)(?P<VALUE>[\d]{2,})`)
-			COMMAND := expression.ReplaceAllString(cmd, "${COMMAND}")
-			VALUE := expression.ReplaceAllString(cmd, "${VALUE}")
-			switch COMMAND {
-			case "PWR":
-				d.device.Power = toBool(VALUE)
-			case "VOL": // Main-Zone Volume
-				d.device.Zones[0].Volume = int32(float32((toInt(VALUE)+1)*100) / maxVol)
-			case "XV": // Zone 2 Volume
-				d.device.Zones[1].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
-			case "YV": // Zone 3 Volume
-				// d.device.Zones[2].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
-			default:
-				fmt.Printf("Unknown command received %s \n", COMMAND)
-				break
+			select {
+			case <-d.ctx.Done():
+				return
+			case cmd := <-d.nc.RecCommands:
+				go func(command string) {
+					var expression = regexp.MustCompile(`(?P<COMMAND>^[A-Z]+[\d]??[A-Z]+)(?P<VALUE>[\d]{2,})`)
+					COMMAND := expression.ReplaceAllString(cmd, "${COMMAND}")
+					VALUE := expression.ReplaceAllString(cmd, "${VALUE}")
+					switch COMMAND {
+					case "PWR":
+						d.device.Power = toBool(VALUE)
+					case "VOL": // Main-Zone Volume
+						d.device.Zones[0].Volume = int32(float32((toInt(VALUE)+1)*100) / maxVol)
+					case "XV": // Zone 2 Volume
+						d.device.Zones[1].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
+					case "YV": // Zone 3 Volume
+						// d.device.Zones[2].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
+					case "MUT":
+						d.device.Zones[0].Muted = toBool(VALUE)
+					case "HZMUT":
+						d.device.Zones[0].Muted = toBool(VALUE)
+					default:
+						return
+					}
+					for _, fn := range d.updateFuncs {
+						fn(&d.device)
+					}
+				}(cmd)
 			}
-			go func() {
-				for _, fn := range d.updateFuncs {
-					fn()
-				}
-			}()
 		}
 	}()
 }

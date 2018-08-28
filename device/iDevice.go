@@ -5,10 +5,11 @@ import (
 )
 
 type IDevice interface {
+	Reachable() bool
 	SetPower(bool)
 	Mute(int32, bool)
 	SetVolume(int32, int32)
 	SetSource(int32, int32)
-	OnUpdate(func())
+	OnUpdate(func(*pb.AVR))
 	GetAvr() *pb.AVR
 }

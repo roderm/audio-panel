@@ -1,6 +1,7 @@
 package telnet
 
 import (
+	"context"
 	"fmt"
 	"github.com/ziutek/telnet"
 	"strconv"
@@ -9,16 +10,17 @@ import (
 )
 
 type PioneerCaller struct {
-	done         chan bool
+	ctx          context.Context
 	sendCommands chan string
 	RecCommands  chan string
 	conn         *telnet.Conn
+	connected    bool
 }
 
-func NewPioneerCaller(host string, port int) (*PioneerCaller, error) {
+func NewPioneerCaller(ctx context.Context, host string, port int) (*PioneerCaller, error) {
 	var err error
 	ret := &PioneerCaller{
-		done:         make(chan bool),
+		ctx:          ctx,
 		sendCommands: make(chan string),
 		RecCommands:  make(chan string)}
 	addr := fmt.Sprintf("%s:%s", host, strconv.Itoa(port))
@@ -31,7 +33,8 @@ func (c *PioneerCaller) StartListen() {
 		buf := make([]byte, 512)
 		for {
 			select {
-			case <-c.done:
+			case <-c.ctx.Done():
+				c.unload()
 				return
 			default:
 				n, _ := c.conn.Read(buf) // Use raw read to find issue #15.
@@ -46,7 +49,8 @@ func (c *PioneerCaller) StartListen() {
 	go func() {
 		for {
 			select {
-			case <-c.done:
+			case <-c.ctx.Done():
+				c.unload()
 				return
 			case cmd := <-c.sendCommands:
 				command := []byte(fmt.Sprintf("%s\n\r", cmd))
@@ -57,10 +61,10 @@ func (c *PioneerCaller) StartListen() {
 				}
 				if expected, actual := int64(len(command)), n; int(expected) != actual {
 					err := fmt.Errorf("Transmission problem: tried sending %d bytes, but actually only sent %d bytes.", expected, actual)
-					fmt.Errorf(err.Error())
+					fmt.Printf(err.Error())
 					return
 				}
-				time.Sleep(time.Millisecond * 100)
+				time.Sleep(time.Second)
 			}
 
 		}
@@ -71,7 +75,7 @@ func (c *PioneerCaller) Send(command string) {
 	c.sendCommands <- command
 }
 
-func (c *PioneerCaller) Unload() {
-	c.done <- true
+func (c *PioneerCaller) unload() {
+	fmt.Println("Dead of telnet")
 	c.conn.Close()
 }

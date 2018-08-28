@@ -1,36 +1,24 @@
 package main
 
 import (
+	"context"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
+	"github.com/roderm/audio-panel/api"
+	"github.com/roderm/audio-panel/device"
 	jws "github.com/roderm/json-rpc/websocket"
 	"golang.org/x/net/websocket"
-	"time"
 )
 
 func main() {
 
-	wsHandler := jws.NewHandler()
-	wsHandler.Add("sayhello", func(params interface{}) interface{} {
-		type myHelloMsg struct {
-			Text string `json:"text"`
-		}
-		return myHelloMsg{Text: "Hello you"}
+	ds := device.NewDeviceStore(context.Background())
+	go ds.AddDevice(device.DeviceConfig{
+		DeviceType:    "pioneer",
+		DeviceAddress: "192.168.178.28",
 	})
-
-	wsHandler.AddSubscription("foo", func(params interface{}) chan interface{} {
-		type bar struct {
-			Text string
-		}
-		mychan := make(chan interface{})
-		go func() {
-			for {
-				time.Sleep(time.Second * 10)
-				mychan <- bar{Text: "I'm still here"}
-			}
-		}()
-		return mychan
-	})
+	wsHandler := jws.NewHandler(context.Background())
+	api.AddDeviceApi(wsHandler, ds)
 	// Set the router as the default one shipped with Gin
 	router := gin.Default()
 	// Serve frontend static files

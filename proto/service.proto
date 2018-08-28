@@ -20,12 +20,13 @@ message AVR {
         int32 Source = 5;
         bool SyncVol = 6;
         bool SyncSrc = 7;
+        bool Muted = 8;
     }
-    
-    bool Power = 1;
-    map<int32, Zone> Zones = 2;
-    map<int32, string> InputSources = 3;
-    string IP = 4;
+    int64 Id = 1;
+    bool Power = 2;
+    map<int32, Zone> Zones = 3;
+    map<int32, string> InputSources = 4;
+    string IP = 5;
 }
 message AVR_PowerToggle {
     string IP = 1;
