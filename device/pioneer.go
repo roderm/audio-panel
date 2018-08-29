@@ -7,10 +7,15 @@ import (
 	"github.com/roderm/audio-panel/telnet"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 const maxVol = 160 // 185
 const maxHZ = 80
+
+var listeningMods = map[string]string{
+	"0041": "Extended Stereo",
+}
 
 type PioneerDevice struct {
 	ctx         context.Context
@@ -47,11 +52,20 @@ func NewPioneerDevice(ctx context.Context, ip string) IDevice {
 func (d *PioneerDevice) initCommands() {
 	d.startListener()
 	go func() {
-		d.nc.Send("?V")
-		d.nc.Send("?PWR")
-		d.nc.Send("?HZV")
-		d.nc.Send("?M")
-		d.nc.Send("?HZM")
+		for {
+			select {
+			case <-d.ctx.Done():
+				return
+			default:
+				d.nc.Send("?V")
+				d.nc.Send("?PWR")
+				d.nc.Send("?HZV")
+				d.nc.Send("?M")
+				d.nc.Send("?HZM")
+				d.nc.Send("?S")
+				time.Sleep(time.Second * 10)
+			}
+		}
 	}()
 }
 
@@ -81,7 +95,11 @@ func (d *PioneerDevice) Mute(zone int32, on bool) {
 	}
 }
 
-func (d *PioneerDevice) SetSource(zone int32, src int32) {
+func (d *PioneerDevice) SetSource(zone int32, src string) {
+
+}
+
+func (d *PioneerDevice) SetListeningMod(zone int32, src string) {
 
 }
 
@@ -128,6 +146,10 @@ func (d *PioneerDevice) startListener() {
 						d.device.Zones[0].Muted = toBool(VALUE)
 					case "HZMUT":
 						d.device.Zones[0].Muted = toBool(VALUE)
+					case "SR":
+						d.device.Zones[0].CurrentListeningMod = VALUE
+					case "FN":
+						d.device.Zones[0].CurrentSource = VALUE
 					default:
 						return
 					}

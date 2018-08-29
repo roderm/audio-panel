@@ -13,14 +13,25 @@ message null {
 }
 message AVR {
     message Zone {
+        message ListeningMod {
+            string Code = 1;
+            string Name = 2;
+        }
+        message Source {
+            string Code = 1;
+            string Name = 2;
+        }
         bool State = 1;
         string Name = 2;
         int32 Volume = 3;
         bool isMain = 4;
-        int32 Source = 5;
+        string CurrentSource = 5;
         bool SyncVol = 6;
         bool SyncSrc = 7;
         bool Muted = 8;
+        string CurrentListeningMod = 9;
+        repeated ListeningMod ListeningMods = 10;
+        repeated Source Sources = 11;
     }
     int64 Id = 1;
     bool Power = 2;
