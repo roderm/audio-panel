@@ -14,11 +14,12 @@ func AddDeviceApi(handler *jws.Handler, strg *device.DeviceStore) {
 	storage = strg
 	handler.Add("get_devices", getDevices)
 	handler.Add("set_volume", setVolume)
+	handler.Add("set_mute", setMute)
 
 	handler.AddSubscription("subscribe_update", subDevices)
 }
 
-func getDevices(param interface{}) interface{} {
+func getDevices(param interface{}) (interface{}, jws.Error) {
 	type Result struct {
 		Devices []*pb.AVR
 	}
@@ -26,13 +27,53 @@ func getDevices(param interface{}) interface{} {
 	for _, d := range storage.GetDevices() {
 		ret.Devices = append(ret.Devices, d.GetAvr())
 	}
-	return ret
+	return ret, jws.Error{Code: 0}
 }
 
-func setVolume(params interface{}) interface{} {
+func setMute(params interface{}) (interface{}, jws.Error) {
+	type Mute struct {
+		Device int64
+		Zone   string
+		Mute   bool
+	}
+	type Result struct {
+		Ok bool
+	}
+
+	var requests []Mute
+	p, ok := params.([]interface{})
+	if !ok {
+		log.Printf("Param for set Mute is no Array \n")
+	}
+	for _, r := range p {
+		var myval Mute
+		err := mapstructure.Decode(r, &myval)
+		if err == nil {
+			requests = append(requests, myval)
+		} else {
+			log.Println(err)
+		}
+	}
+
+	for _, v := range requests {
+		devs := storage.GetDevices()
+		for _, d := range devs {
+			if d.GetAvr().Id == v.Device {
+				err := d.Mute(v.Zone, v.Mute)
+				if err != nil {
+					return Result{Ok: false}, jws.Error{Code: 500, Message: err.Error()}
+				}
+				return Result{Ok: true}, jws.Error{Code: 0}
+			}
+		}
+	}
+	return Result{Ok: false}, jws.Error{Code: 0}
+}
+
+func setVolume(params interface{}) (interface{}, jws.Error) {
 	type Volume struct {
 		Device int64
-		Zone   int32
+		Zone   string
 		Volume int32
 	}
 	type Result struct {
@@ -58,12 +99,15 @@ func setVolume(params interface{}) interface{} {
 		devs := storage.GetDevices()
 		for _, d := range devs {
 			if d.GetAvr().Id == v.Device {
-				d.SetVolume(v.Zone, v.Volume)
-				return Result{Ok: true}
+				err := d.SetVolume(v.Zone, v.Volume)
+				if err != nil {
+					return Result{Ok: false}, jws.Error{Code: 500, Message: err.Error()}
+				}
+				return Result{Ok: true}, jws.Error{Code: 0}
 			}
 		}
 	}
-	return Result{Ok: false}
+	return Result{Ok: false}, jws.Error{Code: 500, Message: "Unknown errors"}
 }
 
 func subDevices(interface{}) chan interface{} {

@@ -3,169 +3,241 @@ package device
 import (
 	"context"
 	"fmt"
+	"github.com/mitchellh/mapstructure"
 	pb "github.com/roderm/audio-panel/proto"
 	"github.com/roderm/audio-panel/telnet"
+	"log"
 	"regexp"
 	"strconv"
 	"time"
 )
 
-const maxVol = 160 // 185
-const maxHZ = 80
-
-var listeningMods = map[string]string{
-	"0041": "Extended Stereo",
+type pioneerCommandSetup struct {
+	Command map[string]string
+}
+type pioneerZoneSetup struct {
+	Name     string                         `json:"name"`
+	IsMain   bool                           `json:"main"`
+	MaxVol   int                            `json:"maxVol"`
+	Commands map[string]pioneerCommandSetup `json:"commands"`
+}
+type PioneerDriver struct {
+	ctx        context.Context
+	Zones      []pioneerZoneSetup
+	console    *telnet.PioneerCaller
+	avr        *pb.AVR
+	updateSubs []func(*pb.AVR)
 }
 
-type PioneerDevice struct {
-	ctx         context.Context
-	device      pb.AVR
-	nc          *telnet.PioneerCaller
-	updateFuncs []func(*pb.AVR)
-}
-
-func NewPioneerDevice(ctx context.Context, ip string) IDevice {
-	p := PioneerDevice{
+func NewPioneerDriver(ctx context.Context, config DeviceConfig, cmdConfig CommandSet) (IDevice, error) {
+	p := &PioneerDriver{
 		ctx: ctx,
+		avr: &pb.AVR{
+			Zones: make(map[string]*pb.AVR_Zone),
+		},
 	}
-	p.nc, _ = telnet.NewPioneerCaller(ctx, ip, 8102)
-	p.device = pb.AVR{
-		IP:    ip,
-		Zones: make(map[int32]*pb.AVR_Zone),
+
+	port, err := strconv.Atoi(config.DevicePort)
+	if err != nil {
+		return nil, err
 	}
-	p.device.Zones[0] = &pb.AVR_Zone{
-		IsMain: true,
-		Name:   "main",
-		Volume: 80,
-		Muted:  false,
+	p.console, err = telnet.NewPioneerCaller(ctx, config.DeviceAddress, port)
+	if err != nil {
+		return nil, err
 	}
-	p.device.Zones[1] = &pb.AVR_Zone{
-		IsMain: true,
-		Name:   "hdzone",
-		Volume: 80,
-		Muted:  false,
+	for _, z := range cmdConfig.Zones {
+		var zs pioneerZoneSetup
+		err := mapstructure.Decode(z, &zs)
+		zoneMap := z.(map[string]interface{})
+		err = mapstructure.Decode(zoneMap["commands"], &zs.Commands)
+		for cmd, set := range zoneMap["commands"].(map[string]interface{}) {
+			var c pioneerCommandSetup
+			err := mapstructure.Decode(set, &c.Command)
+			if err != nil {
+				log.Println(err)
+			}
+			zs.Commands[cmd] = c
+		}
+		if err != nil {
+			return nil, err
+		}
+		p.Zones = append(p.Zones, zs)
+		// register listeners
+		p.avr.Zones[zs.Name] = &pb.AVR_Zone{
+			Name:   zs.Name,
+			Power:  false,
+			IsMain: zs.IsMain,
+			Mute:   false,
+		}
+		for cmd, set := range zs.Commands {
+			if resp, ok := set.Command["response"]; ok {
+				if _, ok := set.Command["datatype"]; ok {
+					p.console.Subscribe(resp, func(cmd string) func(interface{}) {
+						return func(val interface{}) {
+							switch cmd {
+							case "power":
+								p.avr.Zones[zs.Name].Power = (toInt(val) > 0)
+							case "volume":
+								p.avr.Zones[zs.Name].Volume = int32((float32(100) / float32(zs.MaxVol)) * float32(toInt(val)))
+							case "mute":
+								p.avr.Zones[zs.Name].Mute = (toInt(val) > 0)
+							case "input":
+								p.avr.Zones[zs.Name].CurrentSource = val.(string)
+							case "listening_mod":
+								p.avr.Zones[zs.Name].CurrentListeningMod = val.(string)
+							default:
+								return
+							}
+							p.notifyUpdate()
+						}
+					}(cmd))
+				} else {
+					log.Printf("No datatype addr for %s: %+v", cmd, set)
+				}
+			} else {
+				log.Printf("Commandset for %s not available: %+v", cmd, set)
+			}
+		}
 	}
-	p.initCommands()
-	return &p
+	p.console.StartListen()
+	p.startTriggers()
+	return p, err
 }
 
-func (d *PioneerDevice) initCommands() {
-	d.startListener()
+func (p *PioneerDriver) startTriggers() {
 	go func() {
 		for {
 			select {
-			case <-d.ctx.Done():
+			case <-p.ctx.Done():
 				return
 			default:
-				d.nc.Send("?V")
-				d.nc.Send("?PWR")
-				d.nc.Send("?HZV")
-				d.nc.Send("?M")
-				d.nc.Send("?HZM")
-				d.nc.Send("?S")
-				time.Sleep(time.Second * 10)
+				for _, z := range p.Zones {
+					for _, c := range z.Commands {
+						if resp, ok := c.Command["get"]; ok {
+							p.console.Send(resp)
+						}
+					}
+				}
+				time.Sleep(time.Minute * 5)
 			}
 		}
 	}()
 }
-
-func (d *PioneerDevice) Reachable() bool {
-	return true
-}
-func (d *PioneerDevice) SetPower(on bool) {
-	if on {
-		d.nc.Send("PWR1")
-	} else {
-		d.nc.Send("PWR0")
+func mapToConfigDatatype(dt string, val interface{}) (interface{}, error) {
+	switch dt {
+	case "string":
+		return val.(string), nil
+	case "int":
+		return strconv.Atoi(val.(string))
 	}
+	return val, nil
 }
 
-func (d *PioneerDevice) Mute(zone int32, on bool) {
-	var mt string
-	switch zone {
-	case 0:
-		mt = "M"
-	case 1:
-		mt = "HZM"
+func (p *PioneerDriver) simpleSet(zone string, key string, value interface{}) error {
+	z, err := p.getZoneSetup(zone)
+	if err != nil {
+		return err
 	}
-	if on {
-		d.nc.Send(fmt.Sprintf("%sO", mt))
-	} else {
-		d.nc.Send(fmt.Sprintf("%sF", mt))
-	}
-}
-
-func (d *PioneerDevice) SetSource(zone int32, src string) {
-
-}
-
-func (d *PioneerDevice) SetListeningMod(zone int32, src string) {
-
-}
-
-func (d *PioneerDevice) SetVolume(zone int32, volume int32) {
-	switch zone {
-	case 0:
-		vol := int(float32(maxVol*volume)/100) - 1
-		d.nc.Send(fmt.Sprintf("%03dVL", vol))
-	case 1:
-		vol := int(float32(maxHZ*volume) / 100)
-		d.nc.Send(fmt.Sprintf("%02dHZV", vol))
-	}
-}
-
-func (d *PioneerDevice) OnUpdate(fn func(*pb.AVR)) {
-	d.updateFuncs = append(d.updateFuncs, fn)
-}
-func (d *PioneerDevice) GetAvr() *pb.AVR {
-	return &d.device
-}
-
-func (d *PioneerDevice) startListener() {
-	d.nc.StartListen()
-	go func() {
-		for {
-			select {
-			case <-d.ctx.Done():
-				return
-			case cmd := <-d.nc.RecCommands:
-				go func(command string) {
-					var expression = regexp.MustCompile(`(?P<COMMAND>^[A-Z]+[\d]??[A-Z]+)(?P<VALUE>[\d]{2,})`)
-					COMMAND := expression.ReplaceAllString(cmd, "${COMMAND}")
-					VALUE := expression.ReplaceAllString(cmd, "${VALUE}")
-					switch COMMAND {
-					case "PWR":
-						d.device.Power = toBool(VALUE)
-					case "VOL": // Main-Zone Volume
-						d.device.Zones[0].Volume = int32(float32((toInt(VALUE)+1)*100) / maxVol)
-					case "XV": // Zone 2 Volume
-						d.device.Zones[1].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
-					case "YV": // Zone 3 Volume
-						// d.device.Zones[2].Volume = int32(float32((toInt(VALUE)+1)*100) / maxHZ)
-					case "MUT":
-						d.device.Zones[0].Muted = toBool(VALUE)
-					case "HZMUT":
-						d.device.Zones[0].Muted = toBool(VALUE)
-					case "SR":
-						d.device.Zones[0].CurrentListeningMod = VALUE
-					case "FN":
-						d.device.Zones[0].CurrentSource = VALUE
-					default:
-						return
-					}
-					for _, fn := range d.updateFuncs {
-						fn(&d.device)
-					}
-				}(cmd)
-			}
+	if cmd, ok := z.Commands[key]; ok {
+		if set, ok := cmd.Command["set"]; ok {
+			p.sendCommand(set, value)
+			return nil
+		} else {
+			return fmt.Errorf("not enough driver info available to set %s", key)
 		}
-	}()
+	}
+	return fmt.Errorf("Zone doesn't support %s", key)
+}
+func (p *PioneerDriver) sendCommand(command string, value interface{}) {
+	r := regexp.MustCompile(`(?P<PLACEHOLDER>#{1,})`)
+	PLACEHOLDER := r.FindString(command)
+	format := fmt.Sprintf(`%%0%dv`, len(PLACEHOLDER))
+	cmd := r.ReplaceAllString(command, fmt.Sprintf(format, value))
+	p.console.Send(cmd)
 }
 
-func toBool(val string) bool {
-	return (toInt(val) > 0)
+func (p *PioneerDriver) notifyUpdate() {
+	for _, f := range p.updateSubs {
+		go f(p.avr)
+	}
 }
-func toInt(val string) int {
-	i, _ := strconv.Atoi(val)
+
+func (p *PioneerDriver) getZoneSetup(zone string) (*pioneerZoneSetup, error) {
+	for _, z := range p.Zones {
+		if z.Name == zone {
+			return &z, nil
+		}
+	}
+	return nil, fmt.Errorf("No zone found for %s", zone)
+}
+
+func (p *PioneerDriver) SetPower(zone string, on bool) error {
+	onInt := 0
+	if on {
+		onInt = 1
+	}
+	return p.simpleSet(zone, "power", onInt)
+}
+
+func (p *PioneerDriver) Mute(zone string, mute bool) error {
+	muteInt := 1
+	if mute {
+		muteInt = 1
+	}
+	return p.simpleSet(zone, "mute", muteInt)
+}
+
+func (p *PioneerDriver) SetSource(zone string, source string) error {
+	return p.simpleSet(zone, "input", source)
+}
+func (p *PioneerDriver) SetListeningMod(zone string, mode string) error {
+	return p.simpleSet(zone, "input", mode)
+}
+func (p *PioneerDriver) SetVolume(zone string, volume int32) error {
+	z, err := p.getZoneSetup(zone)
+	if err != nil {
+		panic(err)
+	}
+	vol := int(float32(z.MaxVol*int(volume)) / 100.0)
+	if cmd, ok := z.Commands["volume"]; ok {
+		_, hasSet := cmd.Command["set"]
+		_, hasUp := cmd.Command["up"]
+		_, hasDown := cmd.Command["down"]
+		_, hasResponse := cmd.Command["response"]
+		switch true {
+		case hasSet:
+			p.sendCommand(cmd.Command["set"], vol)
+		case hasUp && hasDown && hasResponse:
+			p.console.Once(cmd.Command["response"], func(val interface{}) {
+				current := val.(int)
+				switch true {
+				case vol > current:
+					for i := 0; i < vol-current; i++ {
+						p.console.Send(cmd.Command["up"])
+					}
+				case vol < current:
+					for i := 0; i < vol-current; i++ {
+						p.console.Send(cmd.Command["down"])
+					}
+				}
+			})
+		default:
+			return fmt.Errorf("not enough driver info available to set volume")
+		}
+		return nil
+	} else {
+		return fmt.Errorf("zone doesn't support volume")
+	}
+}
+
+func (p *PioneerDriver) OnUpdate(f func(*pb.AVR)) {
+	p.updateSubs = append(p.updateSubs, f)
+}
+func (p *PioneerDriver) GetAvr() *pb.AVR {
+	return p.avr
+}
+
+func toInt(iface interface{}) int {
+	i, _ := strconv.Atoi(iface.(string))
 	return i
 }

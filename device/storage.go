@@ -2,9 +2,13 @@ package device
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	pb "github.com/roderm/audio-panel/proto"
+	"io/ioutil"
+	"log"
+	"os"
 	"sync"
 )
 
@@ -30,6 +34,7 @@ func (d *DeviceStore) notifySubscritions(dev *pb.AVR, id int64) {
 func (d *DeviceStore) AddDevice(config DeviceConfig) (int, error) {
 	device, err := createDevice(d.ctx, config)
 	if err != nil {
+		log.Panicf("Couldn't create device: %s", err.Error())
 		return 0, err
 	}
 	lock.Lock()
@@ -38,7 +43,6 @@ func (d *DeviceStore) AddDevice(config DeviceConfig) (int, error) {
 	avr.Id = int64(deviceId)
 	lock.Unlock()
 	updateFunc := func(dev *pb.AVR) {
-		fmt.Println(avr.GetZones()[0].GetVolume())
 		d.notifySubscritions(dev, avr.Id)
 	}
 	device.OnUpdate(updateFunc)
@@ -56,16 +60,24 @@ func (d *DeviceStore) SubscribeUpdate(f func(*pb.AVR)) {
 	d.updateSubs = append(d.updateSubs, f)
 }
 
-type DeviceConfig struct {
-	DeviceType    string `json:"device_type"`
-	DeviceAddress string `json:"device_address"`
-	DevicePort    string `json:"device_port"`
-}
-
 func createDevice(ctx context.Context, config DeviceConfig) (IDevice, error) {
-	switch config.DeviceType {
+	if _, err := os.Stat(config.Setup); err != nil {
+		return nil, fmt.Errorf("path to configfile(%s) not found.", config.Setup)
+	}
+
+	fileContent, err := ioutil.ReadFile(config.Setup)
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't read configfile(%s).", config.Setup)
+	}
+	var setup CommandSet
+	err = json.Unmarshal(fileContent, &setup)
+	if err != nil {
+		return nil, fmt.Errorf("Bad Syntax in configfile(%s), wasn't able to parse json.", config.Setup)
+	}
+
+	switch setup.Driver {
 	case "pioneer":
-		return NewPioneerDevice(ctx, config.DeviceAddress), nil
+		return NewPioneerDriver(ctx, config, setup)
 	default:
 		return nil, errors.New("No device configured")
 	}

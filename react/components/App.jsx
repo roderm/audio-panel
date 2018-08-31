@@ -15,12 +15,16 @@ class App extends React.Component {
         var that = this;
         this.ws = new WebsocketApi("ws://localhost:3000/api")
         this.ws.rx("get_devices", {}).then(function(res){
-            res.Devices.every((d)=> that.state.AvrDevices.set(d.Id, d))
-            that.forceUpdate()
+            if(res.Devices){
+                res.Devices.every((d)=> that.state.AvrDevices.set(d.id, d))
+                that.forceUpdate()
+            }else{
+                console.log("no devices received")
+            }
         })
         this.ws.sub("subscribe_update").subscribe("onsubscribe_update", function(dev){
             console.log(dev)
-            that.state.AvrDevices.set(dev.Id, dev)
+            that.state.AvrDevices.set(dev.id, dev)
             that.forceUpdate()
         })
       }    

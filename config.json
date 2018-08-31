@@ -1,0 +1,9 @@
+{
+    "devices":[
+        {
+            "command_set": "./commandsets/pioneer_vsx-930.json",
+            "device_address": "192.168.178.28",
+            "device_port": "8102"
+        }
+    ]
+}

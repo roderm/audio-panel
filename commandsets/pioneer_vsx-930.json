@@ -1,0 +1,99 @@
+{
+    "driver": "pioneer",
+    "zones": [
+        {
+            "name": "main",
+            "main": true,
+            "maxVol": 160,
+            "commands": {
+                "power": {
+                    "get": "?P",
+                    "set": "PWR#",
+                    "response": "PWR#",
+                    "datatype": "int",
+                    "pullcycle": "1800"
+                },
+                "volume": {
+                    "get": "?V",
+                    "set": "###VL",
+                    "up":"VU",
+                    "down":"VD",
+                    "response":"VOL###",
+                    "datatype": "int",
+                    "pullcycle": "120"
+                },
+                "mute": {
+                    "get": "?M",
+                    "set": "M#",
+                    "response": "MUT#",
+                    "datatype": "int",
+                    "pullcycle": "120"
+                },
+                "input": {
+                    "get": "?F",
+                    "set": "##FN",
+                    "up": "FU",
+                    "down": "FD",
+                    "response": "FN##",
+                    "datatype": "string",
+                    "pullcycle": "600"
+                },
+                "listening_mod": {
+                    "get": "?S",
+                    "set": "####SR",
+                    "response": "SR####",
+                    "datatype": "string",
+                    "pullcycle": "600"
+                }
+            }
+        },{
+            "name": "HD-Zone",
+            "main": false,
+            "maxVol": 80,
+            "commands": {
+                "power": {
+                    "get": "?ZEP",
+                    "set":"ZEP#",
+                    "datatype": "int",
+                    "response": "ZEP#",
+                    "pullcycle": "1800"
+                },
+                "volume": {
+                    "get": "?HZV",
+                    "set": "##HZV",
+                    "up":"HZU",
+                    "down":"HZD",
+                    "datatype": "int",
+                    "response": "XV##",
+                    "pullcycle": "120"
+                },
+                "mute": {
+                    "get": "?HZM",
+                    "set": "HZM#",
+                    "datatype": "int",
+                    "response": "HZMUT#",
+                    "pullcycle": "120"
+                },
+                "input": {
+                    "get": "?ZEA",
+                    "set": "##ZEA",
+                    "datatype": "string",
+                    "response": "ZEA##",
+                    "pullcycle": "600"
+                }
+            }
+        }
+    ],
+    "input_sources": [
+        {"Code": "19", "Name": "HDMI-1"},
+        {"Code": "20", "Name": "HDMI-2"},
+        {"Code": "21", "Name": "HDMI-3"},
+        {"Code": "22", "Name": "HDMI-4"},
+        {"Code": "23", "Name": "HDMI-5"},
+        {"Code": "24", "Name": "HDMI-6"},
+	    {"Code": "25", "Name": "BD"}
+    ],
+    "listening_mods": [
+        {"Code": "0041", "Name": "Extended Stereo"}
+    ]
+}
