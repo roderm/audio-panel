@@ -23,6 +23,7 @@ class SmartSlider extends React.Component {
         return <Slider value={this.state.value} onChange={this.setValue.bind(this)} onAfterChange={this.update.bind(this)} />
     }
 }
+
 class AvrZone extends React.Component {
     constructor(props) {
         super(props)
@@ -32,22 +33,20 @@ class AvrZone extends React.Component {
         this.setState(nextProps.zone)
     }
     updateVolume(e) {
-        let ws = new WebsocketApi("ws://localhost:3000/api")
+        let ws = new WebsocketApi("ws://" + location.hostname + ":3000/api")
         ws.rx("set_volume", [{ "Volume": e.value, "Zone": this.props.zoneId, "Device": this.props.devId }]).then(console.log)
     }
     toggleMute(e) {
-        let o = { zone: this.state }
-        o.zone.Muted = !this.state.Muted
-        this.componentWillReceiveProps(o)
-        let ws = new WebsocketApi("ws://localhost:3000/api")
-        ws.rx("set_mute", [{ "Mute": this.state.Muted, "Zone": this.props.zoneId, "Device": this.props.devId }]).then(console.log)
+        this.state.mute = !this.state.mute
+        this.setState(this.state)
+        let ws = new WebsocketApi("ws://"+ location.hostname + ":3000/api")
+        ws.rx("set_mute", [{ "Mute": this.state.mute, "Zone": this.props.zoneId, "Device": this.props.devId }]).then(console.log)
     }
     togglePwr(e) {
-        let o = { zone: this.state }
-        o.zone.power = !this.state.power
-        this.componentWillReceiveProps(o)
-        //let ws = new WebsocketApi("ws://localhost:3000/api")
-        //ws.rx("set_mute", [{ "Mute": this.state.State, "Zone": this.props.zoneId, "Device": this.props.devId }]).then(console.log)
+        this.state.power = !this.state.power
+        this.setState(this.state)
+        let ws = new WebsocketApi("ws://"+ location.hostname + ":3000/api")
+        ws.rx("set_power", [{ "Power": this.state.power, "Zone": this.props.zoneId, "Device": this.props.devId }]).then(console.log)
     }
     render() {
         return (
@@ -56,13 +55,13 @@ class AvrZone extends React.Component {
                 <Grid>
                     <Grid.Row>
                         <Grid.Column width={3}>
-                            <Button toggle active={!this.state.power} onClick={this.togglePwr.bind(this)}><Icon name='volume off' /></Button>
+                            <Button toggle active={this.state.power} onClick={this.togglePwr.bind(this)}><Icon name='volume off' /></Button>
                         </Grid.Column>
                         <Grid.Column width={10}>
                             <SmartSlider value={this.state.volume} min={1} max={50} onUpdate={this.updateVolume.bind(this)} />
                         </Grid.Column>
                         <Grid.Column width={3}>
-                            <Button toggle active={!this.state.mute} onClick={this.toggleMute.bind(this)}><Icon name='volume off' /></Button>
+                            <Button toggle active={this.state.mute} onClick={this.toggleMute.bind(this)}><Icon name='volume off' /></Button>
                         </Grid.Column>
                     </Grid.Row>
                 </Grid>
