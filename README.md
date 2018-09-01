@@ -4,10 +4,17 @@ I've got a VSX-930 in my room and setted up for 5.1 and HD-Zone setup. With ther
 
 ## Roadmap
 - [x] Basic controll (vol, power, etc) by test files
-- [ ] Show updates in React Component (websocket)
-- [ ] Update from frontend to Pioneer
+- [x] Show updates in React Component (websocket)
+- [x] Update from frontend to Pioneer
 - [ ] Support Szenes and scheduled actions
 - [ ] Create "sync"-properties to bring both areas to same state and keep it
 - [ ] gRPC api (android app)
 - [ ] Config-page for "new zones" => possible?
 - [ ] include snapcast devices in panel
+
+## TODOs
+- Add Source selection
+- Add Listeningmod selection
+- Loading animations
+- Prettify UI 
+- split js-files ?
