@@ -76,11 +76,11 @@ func NewPioneerDriver(ctx context.Context, config DeviceConfig, cmdConfig Comman
 						return func(val interface{}) {
 							switch cmd {
 							case "power":
-								p.avr.Zones[zs.Name].Power = (toInt(val) > 0)
+								p.avr.Zones[zs.Name].Power = (toInt(val) == 0)
 							case "volume":
 								p.avr.Zones[zs.Name].Volume = int32((float32(100) / float32(zs.MaxVol)) * float32(toInt(val)))
 							case "mute":
-								p.avr.Zones[zs.Name].Mute = (toInt(val) > 0)
+								p.avr.Zones[zs.Name].Mute = (toInt(val) == 0)
 							case "input":
 								p.avr.Zones[zs.Name].CurrentSource = val.(string)
 							case "listening_mod":
@@ -105,23 +105,27 @@ func NewPioneerDriver(ctx context.Context, config DeviceConfig, cmdConfig Comman
 }
 
 func (p *PioneerDriver) startTriggers() {
-	go func() {
-		for {
-			select {
-			case <-p.ctx.Done():
-				return
-			default:
-				for _, z := range p.Zones {
-					for _, c := range z.Commands {
-						if resp, ok := c.Command["get"]; ok {
+	for _, z := range p.Zones {
+		for _, c := range z.Commands {
+			cycle := 1800
+			if cycleStr, ok := c.Command["pullcycle"]; ok {
+				cycle, _ = strconv.Atoi(cycleStr)
+			}
+			if resp, ok := c.Command["get"]; ok {
+				go func() {
+					for {
+						select {
+						case <-p.ctx.Done():
+							return
+						default:
 							p.console.Send(resp)
+							time.Sleep(time.Second * time.Duration(cycle))
 						}
 					}
-				}
-				time.Sleep(time.Minute * 5)
+				}()
 			}
 		}
-	}()
+	}
 }
 func mapToConfigDatatype(dt string, val interface{}) (interface{}, error) {
 	switch dt {
@@ -172,19 +176,19 @@ func (p *PioneerDriver) getZoneSetup(zone string) (*pioneerZoneSetup, error) {
 }
 
 func (p *PioneerDriver) SetPower(zone string, on bool) error {
-	onInt := 0
+	onVal := "F"
 	if on {
-		onInt = 1
+		onVal = "O"
 	}
-	return p.simpleSet(zone, "power", onInt)
+	return p.simpleSet(zone, "power", onVal)
 }
 
 func (p *PioneerDriver) Mute(zone string, mute bool) error {
-	muteInt := 1
+	muteVal := "F"
 	if mute {
-		muteInt = 1
+		muteVal = "O"
 	}
-	return p.simpleSet(zone, "mute", muteInt)
+	return p.simpleSet(zone, "mute", muteVal)
 }
 
 func (p *PioneerDriver) SetSource(zone string, source string) error {

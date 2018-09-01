@@ -37,6 +37,7 @@ message AVR {
     bool power = 2;
     map<string, Zone> zones = 3;
     map<string, string> inputSources = 4;
+    string Name = 5;
 }
 message AVR_PowerToggle {
     string IP = 1;

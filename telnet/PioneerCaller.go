@@ -39,6 +39,24 @@ func NewPioneerCaller(ctx context.Context, host string, port int) (*PioneerCalle
 func (c *PioneerCaller) StartListen() {
 	go func() {
 		buf := make([]byte, 512)
+		processResponses := func(msg string) {
+			if len(msg) == 0 {
+				return
+			}
+			var expression = regexp.MustCompile(`(?P<COMMAND>^[A-Z]+[\d]??[A-Z]+)(?P<VALUE>[\d]{1,})`)
+			COMMAND := strings.TrimSpace(expression.ReplaceAllString(string(msg), "${COMMAND}"))
+			VALUE := strings.TrimSpace(expression.ReplaceAllString(string(msg), "${VALUE}"))
+			placeholder := ""
+			for i := 0; i < len(VALUE); i++ {
+				placeholder += "#"
+			}
+			resp := fmt.Sprintf("%s%s", COMMAND, placeholder)
+
+			for _, s := range c.subs[resp] {
+				s.cb(VALUE)
+			}
+
+		}
 		for {
 			select {
 			case <-c.ctx.Done():
@@ -47,19 +65,10 @@ func (c *PioneerCaller) StartListen() {
 			default:
 				n, _ := c.conn.Read(buf) // Use raw read to find issue #15.
 				msg := string(buf[:n])
-				go func() {
-					var expression = regexp.MustCompile(`(?P<COMMAND>^[A-Z]+[\d]??[A-Z]+)(?P<VALUE>[\d]{1,})`)
-					COMMAND := strings.TrimSpace(expression.ReplaceAllString(string(msg), "${COMMAND}"))
-					VALUE := strings.TrimSpace(expression.ReplaceAllString(string(msg), "${VALUE}"))
-					placeholder := ""
-					for i := 0; i < len(VALUE); i++ {
-						placeholder += "#"
-					}
-					resp := fmt.Sprintf("%s%s", COMMAND, placeholder)
-					for _, s := range c.subs[resp] {
-						s.cb(VALUE)
-					}
-				}()
+				responses := strings.Split(msg, "\n")
+				for _, msg := range responses {
+					go processResponses(msg)
+				}
 			}
 		}
 	}()
@@ -75,7 +84,7 @@ func (c *PioneerCaller) StartListen() {
 				n, err := c.conn.Write(command)
 				if err != nil {
 					fmt.Println(err)
-					break
+					continue
 				}
 				if expected, actual := int64(len(command)), n; int(expected) != actual {
 					err := fmt.Errorf("Transmission problem: tried sending %d bytes, but actually only sent %d bytes.", expected, actual)
