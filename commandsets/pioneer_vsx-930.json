@@ -8,10 +8,11 @@
             "commands": {
                 "power": {
                     "get": "?P",
-                    "set": "PWR#",
+                    "set": "P#",
                     "response": "PWR#",
                     "datatype": "int",
-                    "pullcycle": "1800"
+                    "pullcycle": "1800",
+                    "toggle": "PZ"
                 },
                 "volume": {
                     "get": "?V",
@@ -53,10 +54,11 @@
             "commands": {
                 "power": {
                     "get": "?ZEP",
-                    "set":"ZEP#",
                     "datatype": "int",
+                    "set": "ZE#",
                     "response": "ZEP#",
-                    "pullcycle": "1800"
+                    "pullcycle": "1800", 
+                    "toggle": "ZZ"
                 },
                 "volume": {
                     "get": "?HZV",
