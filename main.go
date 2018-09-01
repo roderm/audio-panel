@@ -12,9 +12,11 @@ import (
 	"golang.org/x/net/websocket"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 )
 
 type Config struct {
+	TplPath string                `json:"viewspath"`
 	Devices []device.DeviceConfig `json:"devices"`
 }
 
@@ -29,7 +31,12 @@ func main() {
 	// Set the router as the default one shipped with Gin
 	router := gin.Default()
 	// Serve frontend static files
-	router.Use(static.Serve("/", static.LocalFile("./views", true)))
+	tpls, _ := os.Stat(conf.TplPath)
+	if tpls.IsDir() {
+		router.Use(static.Serve("/", static.LocalFile(conf.TplPath, true)))
+	} else {
+		fmt.Println("No filesystem is served")
+	}
 	// Setup route group for the API
 	router.GET("/api", func(c *gin.Context) {
 		handler := websocket.Handler(wsHandler.Handle)
@@ -58,4 +65,14 @@ func readConfig() Config {
 		panic(fmt.Sprintf("Bad Syntax in configfile(%s), wasn't able to parse json.", configFile))
 	}
 	return conf
+}
+
+func getPath() string {
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath := filepath.Dir(ex)
+	return exPath
+
 }

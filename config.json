@@ -1,4 +1,5 @@
 {
+    "viewspath": "./views",
     "devices":[
         {
             "command_set": "./commandsets/pioneer_vsx-930.json",
