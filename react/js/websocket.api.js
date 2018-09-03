@@ -17,11 +17,11 @@ class EventEmitter {
         }
     }
 
-    emit(eventName, data) {
+    emit(eventName, ...data) {
         let emitSubs = (event) => {
             if (event && event.constructor === Array) {
                 event.every(fn => {
-                    fn.call(null, data);
+                    fn.call(null, ...data);
                 });
             }
         }
@@ -76,8 +76,7 @@ class WebsocketApi {
             api.SocketEmitter = new EventEmitter()
             api.socket.addEventListener("message", function (e) {
                 let data = JSON.parse(e.data)
-                console.debug(e)
-                api.SocketEmitter.emit(data.id, data.result)
+                api.SocketEmitter.emit(data.id, data.result, data.error)
             })
         }
         return websocketInstances[_path]
@@ -92,8 +91,8 @@ class WebsocketApi {
         let promise = new Promise(function (resolve, reject) {
             api.getSocket().then(function (ws) {
                 ws.send(JSON.stringify(req))
-                api.SocketEmitter.once(req.id, function (data) {
-                    resolve(data)
+                api.SocketEmitter.once(req.id, function (...data) {
+                    resolve(...data)
                 })
             })
         })
@@ -109,8 +108,8 @@ class WebsocketApi {
         let subscribtion = new EventEmitter()
         api.getSocket().then(function (ws) {
             ws.send(JSON.stringify(req))
-            api.SocketEmitter.subscribe(req.id, function (data) {
-                subscribtion.emit("on" + action, data)
+            api.SocketEmitter.subscribe(req.id, function (...data) {
+                subscribtion.emit("on" + action, ...data)
             })
         })
         return subscribtion

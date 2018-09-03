@@ -1,12 +1,13 @@
 import React from "react";
-import AvrReceiver from "./AvrReceiver.jsx"
+import DeviceComponent from "./Device.jsx"
 import WebsocketApi from "../js/websocket.api.js"
 import { Container } from 'semantic-ui-react'
+
 class App extends React.Component {
     constructor(props) {
         super(props)
         this.state = {
-            AvrDevices: new Map(),
+            Devices: new Map(),
             err: null
         }
 
@@ -16,17 +17,33 @@ class App extends React.Component {
         this.ws = new WebsocketApi("ws://" + location.hostname + ":3000/api")
         this.ws.rx("get_devices", {}).then(function (res) {
             if (res.Devices) {
-                res.Devices.every((d) => that.state.AvrDevices.set(d.id, d))
+                res.Devices.every((d) => that.state.Devices.set(d.Identifier, d))
                 that.forceUpdate()
             } else {
                 console.log("no devices received")
             }
         })
-        this.ws.sub("subscribe_update").subscribe("onsubscribe_update", function (dev) {
-            console.log(dev)
-            that.state.AvrDevices.set(dev.id, dev)
+        this.ws.sub("subscribe_update").subscribe("onsubscribe_update", function (update) {
+            let device = that.state.Devices.get(update.DeviceIdentifier)
+            let item = device.Items.find(item => item.Identifier == update.ItemIdentifier)
+            let itemIndex = device.Items.indexOf(item)
+            let propIndex = item.Properties.indexOf(item.Properties.find( p => p.Name == update.Property.Name))
+            if (propIndex != -1) {
+                item.Properties[propIndex] = update.Property
+            }else{
+                item.Properties.push(update.Property)
+            }
+            if(itemIndex != -1) {
+                device.Items[itemIndex] = item
+            }else{
+                device.Items.push(item)
+            }
+            that.state.Devices.set(update.DeviceIdentifier, device)
             that.forceUpdate()
         })
+    }
+    sendProperty(prop){
+        this.ws.rx("set", [prop]).then(console.log)
     }
     componentWillUnmount() {
         this.ws.close()
@@ -34,19 +51,19 @@ class App extends React.Component {
     render() {
         let that = this
 
-        let avrs = (() => {
+        let devs = (() => {
             let ret = [];
-            for (let [k, d] of that.state.AvrDevices) {
-                ret.push(<AvrReceiver receiver={d} key={k} devId={k} />)
+            for (let [k, d] of that.state.Devices) {
+                ret.push(<DeviceComponent device={d} key={k} devId={k} onUpdate={this.sendProperty.bind(this)}/>)
             }
             return ret
         })()
         //that.state.AvrDevices.keys().map((k) => <AvrReceiver receiver={that.state.AvrDevices[k]} key={k} devId={k}/> )
         return (
             <div>
-                <h2>My AVR</h2>
+                <h2>My Devices</h2>
                 <Container>
-                    {avrs}
+                    {devs}
                 </Container>
 
             </div>
