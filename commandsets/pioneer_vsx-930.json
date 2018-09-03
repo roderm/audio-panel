@@ -46,6 +46,20 @@
                     "response": "SR####",
                     "datatype": "string",
                     "pullcycle": "600"
+                },
+                "bass": {
+                    "set": "##BA",
+                    "get": "?BA",
+                    "response": "BA##",
+                    "up": "BI",
+                    "down": "BD"
+                },
+                "treble": {
+                    "set": "##TR",
+                    "get": "?TR",
+                    "response": "TR##",
+                    "up": "TI",
+                    "down": "TD"
                 }
             }
         },{
