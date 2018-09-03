@@ -10,6 +10,11 @@ type CommandSet struct {
 	InputSources []pb.AVR_Zone_Source       `json:"input_sources"`
 	ListenMods   []pb.AVR_Zone_ListeningMod `json:"listening_mods"`
 }
+
+type NewDeviConfic struct {
+	Driver string      `json:"driver"`
+	Config interface{} `json:"driver"`
+}
 type DeviceConfig struct {
 	Setup         string `json:"command_set"`
 	DeviceAddress string `json:"device_address"`

@@ -2,9 +2,17 @@
     "viewspath": "./views",
     "devices":[
         {
+            "driver": "pioner",
             "command_set": "./commandsets/pioneer_vsx-930.json",
             "device_address": "192.168.178.28",
             "device_port": "8102"
+        },
+        {
+            "driver": "nanoleaf",
+            "config": {
+                "auth-token": "",
+                "pullcycle": 20
+            }
         }
     ]
 }
