@@ -24,15 +24,17 @@ func main() {
 	conf := readConfig()
 	ds := device.NewDeviceStore(context.Background())
 	for _, dev := range conf.Devices {
-		go func() {
-			_, err := ds.AddDevice(dev)
+		go func(dev device.DeviceConfig) {
+			id, err := ds.AddDevice(dev)
 			if err != nil {
 				fmt.Println(err)
+			} else {
+				fmt.Printf("New device added with id %s \n", id)
 			}
-		}()
+		}(dev)
 	}
 	wsHandler := jws.NewHandler(context.Background())
-	api.AddDeviceApi(wsHandler, ds)
+	api.AddApi(wsHandler, ds)
 	// Set the router as the default one shipped with Gin
 	router := gin.Default()
 	// Serve frontend static files
