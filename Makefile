@@ -1,4 +1,4 @@
-pldirs = plugin/drivers/pioneer
+pldirs = plugin/drivers/pioneer plugin/drivers/nanoleaf
 
 test: 
 	ls -l $(pldirs)
@@ -11,8 +11,20 @@ build-rpi:
 	cp -r commandsets/* build/rpi/commandsets/
 	cp -r views/* build/rpi/views/
 
+build:
+	rm -rf build/linux/
+	mkdir -p build/linux/commandsets/ build/linux/views
+	env GOOS=linux GOARCH=amd64 go build -o build/linux/audio-panel
+	make js-gen
+	make build-plugins
+	cp -r commandsets/* build/linux/commandsets/
+	cp -r views/* build/linux/views/
+
 build-plugins-rpi:
 	$(foreach dir,$(pldirs),(cd $(dir) && make build-rpi ) &&) :
+
+build-plugins:
+	$(foreach dir,$(pldirs),(cd $(dir) && make build ) &&) :
 
 generate-proto:
 	protoc -I. -I$$GOPATH/src/ ./proto/service.proto \
