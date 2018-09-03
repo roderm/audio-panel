@@ -4,13 +4,12 @@
         {
             "name": "main",
             "main": true,
-            "maxVol": 160,
             "commands": {
                 "power": {
                     "get": "?P",
                     "set": "P#",
                     "response": "PWR#",
-                    "datatype": "int",
+                    "datatype": "bool",
                     "pullcycle": "1800",
                     "toggle": "PZ"
                 },
@@ -20,14 +19,16 @@
                     "up":"VU",
                     "down":"VD",
                     "response":"VOL###",
-                    "datatype": "int",
-                    "pullcycle": "120"
+                    "datatype": "percentage",
+                    "pullcycle": "120",
+                    "max": "160",
+                    "min": "0"
                 },
                 "mute": {
                     "get": "?M",
                     "set": "M#",
                     "response": "MUT#",
-                    "datatype": "int",
+                    "datatype": "bool",
                     "pullcycle": "120"
                 },
                 "input": {
@@ -50,11 +51,10 @@
         },{
             "name": "HD-Zone",
             "main": false,
-            "maxVol": 80,
             "commands": {
                 "power": {
                     "get": "?ZEP",
-                    "datatype": "int",
+                    "datatype": "bool",
                     "set": "ZE#",
                     "response": "ZEP#",
                     "pullcycle": "1800", 
@@ -65,14 +65,16 @@
                     "set": "##HZV",
                     "up":"HZU",
                     "down":"HZD",
-                    "datatype": "int",
+                    "datatype": "percentage",
                     "response": "XV##",
-                    "pullcycle": "120"
+                    "pullcycle": "120",
+                    "max": "80",
+                    "min": "0"
                 },
                 "mute": {
                     "get": "?HZM",
                     "set": "HZM#",
-                    "datatype": "int",
+                    "datatype": "bool",
                     "response": "HZMUT#",
                     "pullcycle": "120"
                 },

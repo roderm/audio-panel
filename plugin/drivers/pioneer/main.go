@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-func NewDriver(ctx context.Context, config interface{}) (pl.IReceiver, error) {
+func NewDriver(ctx context.Context, config interface{}, identifier string) (pl.IDevice, error) {
 	var conf PioneerConfig
 	err := mapstructure.Decode(config, &conf)
 	if err != nil {
@@ -28,5 +28,5 @@ func NewDriver(ctx context.Context, config interface{}) (pl.IReceiver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Bad Syntax in configfile(%s), wasn't able to parse json.", conf.Setup)
 	}
-	return NewPioneerDriver(ctx, conf, setup)
+	return NewPioneerDriver(ctx, conf, setup, identifier)
 }
