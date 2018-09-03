@@ -24,7 +24,12 @@ func main() {
 	conf := readConfig()
 	ds := device.NewDeviceStore(context.Background())
 	for _, dev := range conf.Devices {
-		go ds.AddDevice(dev)
+		go func() {
+			_, err := ds.AddDevice(dev)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
 	}
 	wsHandler := jws.NewHandler(context.Background())
 	api.AddDeviceApi(wsHandler, ds)

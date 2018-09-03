@@ -2,27 +2,39 @@ package device
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	pl "github.com/roderm/audio-panel/plugin/iface"
 	pb "github.com/roderm/audio-panel/proto"
-	"io/ioutil"
-	"log"
-	"os"
+	"plugin"
 	"sync"
 )
 
 var deviceId int = 0
 var lock sync.Mutex
 
+type DeviceConfig struct {
+	DriverPath string      `json:"driver"`
+	PluginType string      `json:"type"`
+	Config     interface{} `json:"config"`
+}
 type DeviceStore struct {
-	ctx        context.Context
-	devs       []IDevice
-	updateSubs []func(*pb.AVR)
+	ctx             context.Context
+	ReceiverPlugins map[string]func(context.Context, interface{}) (pl.IReceiver, error)
+	LightPlugins    map[string]func(context.Context, interface{}) (pl.ILight, error)
+	receivers       map[int64]pl.IReceiver
+	lights          map[int64]pl.ILight
+	updateSubs      []func(*pb.AVR)
 }
 
 func NewDeviceStore(ctx context.Context) *DeviceStore {
-	return &DeviceStore{ctx: ctx}
+	return &DeviceStore{
+		ctx:             ctx,
+		ReceiverPlugins: make(map[string]func(context.Context, interface{}) (pl.IReceiver, error)),
+		LightPlugins:    make(map[string]func(context.Context, interface{}) (pl.ILight, error)),
+		receivers:       make(map[int64]pl.IReceiver),
+		lights:          make(map[int64]pl.ILight),
+	}
 }
 
 func (d *DeviceStore) notifySubscritions(dev *pb.AVR, id int64) {
@@ -31,36 +43,72 @@ func (d *DeviceStore) notifySubscritions(dev *pb.AVR, id int64) {
 		s(dev)
 	}
 }
-func (d *DeviceStore) AddDevice(config DeviceConfig) (int, error) {
-	device, err := createDevice(d.ctx, config)
-	if err != nil {
-		log.Panicf("Couldn't create device: %s", err.Error())
-		return 0, err
+func (d *DeviceStore) AddDevice(config DeviceConfig) (int64, error) {
+	var err error
+	getId := func() int64 {
+		lock.Lock()
+		deviceId = +1
+		defer lock.Unlock()
+		return int64(deviceId)
 	}
-	lock.Lock()
-	deviceId = +1
-	avr := device.GetAvr()
-	avr.Id = int64(deviceId)
-	lock.Unlock()
-	updateFunc := func(dev *pb.AVR) {
-		d.notifySubscritions(dev, avr.Id)
+	// Check if plugin is loaded
+	switch config.PluginType {
+	case "receiver":
+		if _, ok := d.ReceiverPlugins[config.DriverPath]; !ok {
+			err = d.addReceiverPlugin(config.DriverPath)
+			if err != nil {
+				return 0, err
+			}
+		}
+		fmt.Println(config.Config)
+		device, err := d.ReceiverPlugins[config.DriverPath](d.ctx, config.Config)
+		if err != nil {
+			return 0, err
+		}
+		did := getId()
+		device.OnUpdate(func(id int64) func(dev *pb.AVR) {
+			return func(dev *pb.AVR) {
+				d.notifySubscritions(dev, id)
+			}
+		}(did))
+		d.receivers[did] = device
+		return did, err
+	case "light":
+		err = errors.New("No ligth implemented yet")
+	default:
+		err = errors.New("No known type")
 	}
-	device.OnUpdate(updateFunc)
-	d.devs = append(d.devs, device)
-	// trigger new device
-	updateFunc(avr)
-	return int(avr.Id), nil
+	return 0, err
 }
 
-func (d *DeviceStore) GetDevices() []IDevice {
-	return d.devs
+func (d *DeviceStore) GetReceivers() map[int64]pl.IReceiver {
+	return d.receivers
 }
 
 func (d *DeviceStore) SubscribeUpdate(f func(*pb.AVR)) {
 	d.updateSubs = append(d.updateSubs, f)
 }
 
-func createDevice(ctx context.Context, config DeviceConfig) (IDevice, error) {
+func (d *DeviceStore) addReceiverPlugin(path string) error {
+	plug, err := plugin.Open(path)
+	if err != nil {
+		return err
+	}
+	sym, err := plug.Lookup("NewDriver")
+	if err != nil {
+		return err
+	}
+
+	newFunc, ok := sym.(func(context.Context, interface{}) (pl.IReceiver, error))
+	if !ok {
+		return errors.New("Failed to load Plugin")
+	}
+	d.ReceiverPlugins[path] = newFunc
+	return nil
+}
+
+/*
+func createReceiver(ctx context.Context, config DeviceConfig) (pl.IReceiver, error) {
 	if _, err := os.Stat(config.Setup); err != nil {
 		return nil, fmt.Errorf("path to configfile(%s) not found.", config.Setup)
 	}
@@ -82,3 +130,4 @@ func createDevice(ctx context.Context, config DeviceConfig) (IDevice, error) {
 		return nil, errors.New("No device configured")
 	}
 }
+*/

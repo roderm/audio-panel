@@ -1,0 +1,14 @@
+{
+    "viewspath": "./views",
+    "devices":[
+        {
+            "driver": "./build/linux/drivers/pioneer.so",
+            "type": "receiver",
+            "config":{
+                "Setup": "./commandsets/pioneer_vsx-930.json",
+                "DeviceAddress": "192.168.178.28",
+                "DevicePort": "8102"
+            }
+        }
+    ]
+}

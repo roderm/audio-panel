@@ -1,17 +1,28 @@
-package device
+package main
 
 import (
 	"context"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
+	pl "github.com/roderm/audio-panel/plugin/iface"
 	pb "github.com/roderm/audio-panel/proto"
-	"github.com/roderm/audio-panel/telnet"
 	"log"
 	"regexp"
 	"strconv"
 	"time"
 )
 
+type PioneerConfig struct {
+	Setup         string `json:"Setup"`
+	DeviceAddress string `json:"DeviceAddress"`
+	DevicePort    string `json:"DevicePort"`
+}
+type CommandSet struct {
+	Driver       string                     `json:"driver"`
+	Zones        []interface{}              `json:"zones"`
+	InputSources []pb.AVR_Zone_Source       `json:"input_sources"`
+	ListenMods   []pb.AVR_Zone_ListeningMod `json:"listening_mods"`
+}
 type pioneerCommandSetup struct {
 	Command map[string]string
 }
@@ -24,12 +35,12 @@ type pioneerZoneSetup struct {
 type PioneerDriver struct {
 	ctx        context.Context
 	Zones      []pioneerZoneSetup
-	console    *telnet.PioneerCaller
+	console    *PioneerCaller
 	avr        *pb.AVR
 	updateSubs []func(*pb.AVR)
 }
 
-func NewPioneerDriver(ctx context.Context, config DeviceConfig, cmdConfig CommandSet) (IDevice, error) {
+func NewPioneerDriver(ctx context.Context, config PioneerConfig, cmdConfig CommandSet) (pl.IReceiver, error) {
 	p := &PioneerDriver{
 		ctx: ctx,
 		avr: &pb.AVR{
@@ -41,7 +52,7 @@ func NewPioneerDriver(ctx context.Context, config DeviceConfig, cmdConfig Comman
 	if err != nil {
 		return nil, err
 	}
-	p.console, err = telnet.NewPioneerCaller(ctx, config.DeviceAddress, port)
+	p.console, err = NewPioneerCaller(ctx, config.DeviceAddress, port)
 	if err != nil {
 		return nil, err
 	}

@@ -24,7 +24,7 @@ func getDevices(param interface{}) (interface{}, jws.Error) {
 		Devices []*pb.AVR
 	}
 	ret := Result{}
-	for _, d := range storage.GetDevices() {
+	for _, d := range storage.GetReceivers() {
 		ret.Devices = append(ret.Devices, d.GetAvr())
 	}
 	return ret, jws.Error{Code: 0}
@@ -56,7 +56,7 @@ func setPower(params interface{}) (interface{}, jws.Error) {
 	}
 
 	for _, v := range requests {
-		devs := storage.GetDevices()
+		devs := storage.GetReceivers()
 		for _, d := range devs {
 			if d.GetAvr().Id == v.Device {
 				err := d.SetPower(v.Zone, v.Power)
@@ -96,7 +96,7 @@ func setMute(params interface{}) (interface{}, jws.Error) {
 	}
 
 	for _, v := range requests {
-		devs := storage.GetDevices()
+		devs := storage.GetReceivers()
 		for _, d := range devs {
 			if d.GetAvr().Id == v.Device {
 				err := d.Mute(v.Zone, v.Mute)
@@ -136,7 +136,7 @@ func setVolume(params interface{}) (interface{}, jws.Error) {
 	}
 
 	for _, v := range requests {
-		devs := storage.GetDevices()
+		devs := storage.GetReceivers()
 		for _, d := range devs {
 			if d.GetAvr().Id == v.Device {
 				err := d.SetVolume(v.Zone, v.Volume)
