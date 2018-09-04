@@ -101,7 +101,7 @@ func getUpdateRequest(v interface{}) (*pb.PropertyUpdate, error) {
 		return update, nil
 	}
 	if v, ok := map_val["Decimal"]; ok {
-		update.Property.Value = &pb.Property_Decimal{Decimal: v.(float32)}
+		update.Property.Value = &pb.Property_Decimal{Decimal: float32(v.(float64))}
 		return update, nil
 	}
 	return update, fmt.Errorf("Uknown type of val")

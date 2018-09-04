@@ -242,7 +242,8 @@ func (p *PioneerDriver) setPercentage(z *pioneerZoneSetup, c *pioneerCommandSetu
 	}
 	target := int((float32(max-min) * val) / 100.0)
 	if set, ok := c.Command["set"]; ok {
-		return p.set(z, set, target)
+		p.sendCommand(set, target)
+		return nil
 	}
 
 	_, hasUp := c.Command["up"]

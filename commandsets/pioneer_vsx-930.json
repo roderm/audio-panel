@@ -52,14 +52,22 @@
                     "get": "?BA",
                     "response": "BA##",
                     "up": "BI",
-                    "down": "BD"
+                    "down": "BD",
+                    "datatype": "percentage",
+                    "pullcycle": "120",
+                    "max": "6",
+                    "min": "0"
                 },
                 "treble": {
                     "set": "##TR",
                     "get": "?TR",
                     "response": "TR##",
                     "up": "TI",
-                    "down": "TD"
+                    "down": "TD",
+                    "datatype": "percentage",
+                    "pullcycle": "120",
+                    "max": "6",
+                    "min": "0"
                 }
             }
         },{
