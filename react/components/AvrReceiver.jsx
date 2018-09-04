@@ -4,48 +4,60 @@ import Slider from 'rc-slider';
 import WebsocketApi from "../js/websocket.api"
 import 'rc-slider/assets/index.css';
 
-class VolumeSlider extends React.Component {
+class PercentageSlider extends React.Component {
     constructor(props) {
         super(props)
-        const { value } = this.props
-        this.state = { value }
+        let { property, style, ...other } = props
+        if (!property.Value) {
+            property.Value = { Decimal: 0 }
+        }
+        this.state = { property, style, other }
     }
     componentWillReceiveProps(nextProps) {
-        this.setValue(nextProps.value)
+        const { property, style, ...other } = nextProps
+        this.setState({ property, style, other })
     }
     setValue(e) {
-        this.setState({ value: e })
+        this.state.property.Value.Decimal = e
+        this.setState(this.state)
     }
     update() {
-        this.props.onUpdate(this.state)
+        this.props.onUpdate(this.state.property)
     }
     render() {
-        return <Slider value={this.state.value} onChange={this.setValue.bind(this)} onAfterChange={this.update.bind(this)} />
+        return <Slider value={this.state.property.Value.Decimal} onChange={this.setValue.bind(this)} onAfterChange={this.update.bind(this)} style={this.state.style} />
     }
 }
 
-class PowerToggle extends React.Component {
+class ToggleButton extends React.Component {
     constructor(props) {
         super(props)
-        const { property, ...other } = props
-        this.state = { property, other }
+        let { property, style, ...other } = props
+        if (!property.Value) {
+            property.Value = { Boolean: false }
+        }
+        this.state = { property, style, other }
     }
     componentWillReceiveProps(nextProps) {
-        const { property, ...other } = nextProps
-        this.setState({ property, other })
+        const { property } = nextProps
+        this.setState({ property })
     }
     onClick(e) {
         this.state.property.Value.Boolean = !this.state.property.Value.Boolean
         this.props.onUpdate(this.state.property)
     }
     render() {
-        let text = this.state.property.Value.Boolean ? "On": "OFF"
-        return <Button toggle active={this.state.property.Value.Boolean} onClick={this.onClick.bind(this)}>{text}</Button>
+        let text = this.state.property.Value.Boolean ? "On" : "OFF"
+        return <Button toggle active={this.state.property.Value.Boolean} onClick={this.onClick.bind(this)} style={this.state.style}>{text}</Button>
     }
 }
 class Empty extends React.Component {
+    constructor(props) {
+        super(props)
+        this.state = props
+    }
     render() {
-        return <p>No component</p>
+        return <p style={{hidden: true}}></p>
     }
 }
 class AvrItem extends React.Component {
@@ -54,21 +66,37 @@ class AvrItem extends React.Component {
         const { is, ...other } = props
         this.state = { is, other }
         this.components = {
-            "auto": Empty,
-            "power": PowerToggle,
-            "mute": PowerToggle,
+            "auto": {
+                "component": Empty, "css": { order: 100 }
+            },
+            "power": {
+                "component": ToggleButton, "css": { order: 1, "flex-basis": "5rem" }
+            },
+            "mute": {
+                "component": ToggleButton, "css": { order: 10, "flex-basis": "5rem" }
+            },
+            "volume": {
+                "component": PercentageSlider, "css": { order: 2, "flex-basis": "30rem" }
+            },
+            "bass": {
+                "component": PercentageSlider, "css": { order: 30, "flex-basis": "10rem" }
+            },
+            "treble": {
+                "component": PercentageSlider, "css": { order: 31, "flex-basis": "10rem" }
+            }
         }
     }
     componentWillReceiveProps(nextProps) {
         const { is, ...other } = nextProps
-        this.setState({is, other})
+        this.setState({ is, other })
     }
     render() {
-        let TagName = this.components[this.state.is || 'auto'];
-        if (TagName == undefined) {
-            TagName = this.components["auto"]
+        let c = this.components[this.state.is || 'auto'];
+        if (c == undefined) {
+            c = this.components["auto"]
         }
-        return <TagName {...this.state.other} />
+        let TagName = c.component
+        return <TagName {...this.state.other} style={c.css} />
     }
 }
 export class AvrZone extends React.Component {
@@ -93,7 +121,7 @@ export class AvrZone extends React.Component {
         return (
             <Segment>
                 <h4>{this.state.Name}</h4>
-                <div style={{ display: "flex" }}>
+                <div style={{ display: "flex", "flex-wrap": "wrap", width: "100%" }}>
                     {Object.keys(Properties).map((p) => <AvrItem is={Properties[p].Name} key={this.state.Identifier + Properties[p].Name} property={Properties[p]} onUpdate={this.onUpdate.bind(this)} />)}
                 </div>
             </Segment>

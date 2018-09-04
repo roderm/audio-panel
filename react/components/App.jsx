@@ -18,13 +18,17 @@ class App extends React.Component {
         this.ws.rx("get_devices", {}).then(function (res) {
             if (res.Devices) {
                 res.Devices.every((d) => that.state.Devices.set(d.Identifier, d))
+                console.log(res.Devices)
                 that.forceUpdate()
             } else {
                 console.log("no devices received")
             }
         })
-        this.ws.sub("subscribe_update").subscribe("onsubscribe_update", function (update) {
+        this.ws.sub("subscribe_update").subscribe("onsubscribe_update", (update) => {
             let device = that.state.Devices.get(update.DeviceIdentifier)
+            if(!device){
+                return
+            }
             let item = device.Items.find(item => item.Identifier == update.ItemIdentifier)
             let itemIndex = device.Items.indexOf(item)
             let propIndex = item.Properties.indexOf(item.Properties.find( p => p.Name == update.Property.Name))
