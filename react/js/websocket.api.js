@@ -3,7 +3,10 @@ let websocketInstances = {};
 class EventEmitter {
     constructor() {
         this.events = {};
-        this.onTimeEvent = {}
+        this.oneTimeEvent = {}
+        this.subscribe = this.subscribe.bind(this)
+        this.emit = this.emit.bind(this)
+        this.once = this.once.bind(this)
     }
     subscribe(eventName, fn) {
         if (!this.events[eventName]) {
@@ -20,28 +23,29 @@ class EventEmitter {
     emit(eventName, ...data) {
         let emitSubs = (event) => {
             if (event && event.constructor === Array) {
-                event.every(fn => {
-                    fn.call(null, ...data);
-                });
+                var i = 1;
+                for(var i = 0; i < event.length; i++){
+                    event[i].call(null, ...data);
+                }
             }
         }
 
         const event = this.events[eventName];
-        const once = this.onTimeEvent[eventName];
+        const once = this.oneTimeEvent[eventName];
         emitSubs(event);
         emitSubs(once);
-        this.onTimeEvent[eventName] = {};
+        this.oneTimeEvent[eventName] = {};
     }
 
     once(eventName, fn) {
-        if (!this.onTimeEvent[eventName]) {
-            this.onTimeEvent[eventName] = [];
+        if (!this.oneTimeEvent[eventName]) {
+            this.oneTimeEvent[eventName] = [];
         }
 
-        this.onTimeEvent[eventName].push(fn);
+        this.oneTimeEvent[eventName].push(fn);
 
         return () => {
-            this.onTimeEvent[eventName] = this.onTimeEvent[eventName].filter(eventFn => fn !== eventFn);
+            this.oneTimeEvent[eventName] = this.oneTimeEvent[eventName].filter(eventFn => fn !== eventFn);
         }
     }
 }
@@ -58,76 +62,98 @@ class WebsocketApi {
             api.createId = () => {
                 return (api.idcounter++).toString();
             }
-            let socket = new WebSocket(_path)
-            api.setUpSocket(socket)
+            this.setUpSocket = this.setUpSocket.bind(this)
+            this.getSocket = this.getSocket.bind(this)
+            this.rx = this.rx.bind(this)
+            this.sub = this.sub.bind(this)
             api.SocketEmitter = new EventEmitter()
+            api.socket = new WebSocket(_path)
+            api.socket.addEventListener("open", () => {
+                api.socketIsConnected = true;
+                api.SocketEmitter.emit("open")
+                api.SocketEmitter.emit("connected")
+                api.setUpSocket()
+            })
         }
         return websocketInstances[_path]
     }
-    setUpSocket(socket){
+    setUpSocket() {
         let api = this;
+        let reconnTimeout
         let reconnFn = () => {
-            api.socketIsConnected = false;
-            // TODO: add timeout
-            let ws = new WebSocket(api.ws_path)
-            api.setUpSocket(ws)
+            clearTimeout(reconnTimeout)
+            reconnTimeout = setTimeout(() => {
+                api.socketIsConnected = false;
+                let ws = new WebSocket(api.ws_path)
+                ws.addEventListener("open", () => {
+                    api.socket = ws
+                    api.setUpSocket()
+                    api.socketIsConnected = true;
+                    api.SocketEmitter.emit("reconnected")
+                    api.SocketEmitter.emit("connected")
+                })
+                ws.addEventListener("error", () => {
+                    reconnFn()
+                })
+            }, 5000)
         }
-        socket.addEventListener("open", () => {
-            api.socketIsConnected = true;
-        })
-        socket.addEventListener("close", reconnFn)
-        socket.addEventListener("error", reconnFn)
-        socket.addEventListener("message", function (e) {
+
+        api.socket.addEventListener("close", reconnFn)
+        api.socket.addEventListener("message", function (e) {
             let data = JSON.parse(e.data)
             api.SocketEmitter.emit(data.id, data.result, data.error)
         })
-        api.socket = socket
     }
-    getSocket() {
-        let api = this
-        let promise = new Promise((resolve, reject) => {
+    getSocket(cb) {
+        let promise = new Promise(function(resolve, reject){
             if (this.socketIsConnected) {
                 resolve(this.socket)
-                return
             }
-            this.socket.addEventListener("open", () => {
+            this.SocketEmitter.once("connected", function() {
                 resolve(this.socket)
-            })
-        })
+            }.bind(this))
+        }.bind(this))
         return promise
     }
+    wsSub() {
+        return this.SocketEmitter
+    }
     rx(action, data) {
-        let api = this;
         let req = {
             method: action,
             id: this.createId(),
             params: data
         }
         let promise = new Promise((resolve, reject) => {
-            api.getSocket().then((ws) => {
-                ws.send(JSON.stringify(req))
-                api.SocketEmitter.once(req.id, (...data) => {
-                    resolve(...data)
+            this.getSocket().then((ws) => {
+                this.SocketEmitter.once(req.id, (result, error) => {
+                    if (error) {
+                        if (error.code != 0) {
+                            reject(error)
+                        }
+                    }
+                    resolve(result)
                 })
+                ws.send(JSON.stringify(req))
             })
         })
         return promise
     }
     sub(action, data) {
-        let api = this;
         let req = {
             method: action,
             id: this.createId(),
             params: data
         }
-        let subscribtion = new EventEmitter()
-        api.getSocket().then((ws) => {
-            ws.send(JSON.stringify(req))
-            api.SocketEmitter.subscribe(req.id, (...data) => {
-                subscribtion.emit("on" + action, ...data)
+
+        let subscription = new EventEmitter()
+        this.getSocket().then((ws) => {
+            this.SocketEmitter.subscribe(req.id, (...data) => {
+                subscription.emit("on" + action, ...data)
             })
+            ws.send(JSON.stringify(req))
         })
-        return subscribtion
+        return subscription
     }
 }
 

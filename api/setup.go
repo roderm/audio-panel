@@ -14,6 +14,7 @@ func AddApi(handler *jws.Handler, strg *device.DeviceStore) {
 	handler.Add("get_devices", getDevices)
 	handler.Add("set", setProperty)
 	handler.AddSubscription("subscribe_update", subDevices)
+	handler.AddSubscription("subscribe_new", subNew)
 }
 
 func getDevices(param interface{}) (interface{}, jws.Error) {
@@ -24,6 +25,9 @@ func getDevices(param interface{}) (interface{}, jws.Error) {
 	fmt.Println(storage.GetReceivers())
 	for _, d := range storage.GetReceivers() {
 		ret.Devices = append(ret.Devices, d.GetDevice())
+	}
+	if len(ret.Devices) == 0 {
+		return ret, jws.Error{Code: 10, Message: "No devices found"}
 	}
 	return ret, jws.Error{Code: 0}
 }
@@ -109,6 +113,14 @@ func getUpdateRequest(v interface{}) (*pb.PropertyUpdate, error) {
 func subDevices(interface{}) chan interface{} {
 	mychan := make(chan interface{})
 	storage.SubscribeUpdate(func(update *pb.PropertyUpdate) {
+		mychan <- update
+	})
+	return mychan
+}
+
+func subNew(interface{}) chan interface{} {
+	mychan := make(chan interface{})
+	storage.SubscribeNew(func(update *pb.Device) {
 		mychan <- update
 	})
 	return mychan
