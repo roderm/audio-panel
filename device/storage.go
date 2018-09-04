@@ -6,6 +6,8 @@ import (
 	"fmt"
 	pl "github.com/roderm/audio-panel/plugin/iface"
 	pb "github.com/roderm/audio-panel/proto"
+	"log"
+	"os"
 	"plugin"
 	"sync"
 )
@@ -20,7 +22,7 @@ type DeviceConfig struct {
 }
 type DeviceStore struct {
 	ctx           context.Context
-	DevicePlugins map[string]func(context.Context, interface{}, string) (pl.IDevice, error)
+	DevicePlugins map[string]func(context.Context, interface{}, *log.Logger, string) (pl.IDevice, error)
 	devices       map[string]pl.IDevice
 	updateSubs    []func(*pb.PropertyUpdate)
 }
@@ -28,7 +30,7 @@ type DeviceStore struct {
 func NewDeviceStore(ctx context.Context) *DeviceStore {
 	return &DeviceStore{
 		ctx:           ctx,
-		DevicePlugins: make(map[string]func(context.Context, interface{}, string) (pl.IDevice, error)),
+		DevicePlugins: make(map[string]func(context.Context, interface{}, *log.Logger, string) (pl.IDevice, error)),
 		devices:       make(map[string]pl.IDevice),
 	}
 }
@@ -56,7 +58,8 @@ func (d *DeviceStore) AddDevice(config DeviceConfig) (string, error) {
 	}
 	cid := getId()
 	did := fmt.Sprintf("Device_%d", cid)
-	device, err := d.DevicePlugins[config.DriverPath](d.ctx, config.Config, did)
+	lg := log.New(os.Stdout, config.DriverPath, log.Ltime)
+	device, err := d.DevicePlugins[config.DriverPath](d.ctx, config.Config, lg, did)
 	if err != nil {
 		return did, err
 	}
@@ -88,7 +91,7 @@ func (d *DeviceStore) addPlugin(path string) error {
 		return err
 	}
 
-	newFunc, ok := sym.(func(context.Context, interface{}, string) (pl.IDevice, error))
+	newFunc, ok := sym.(func(context.Context, interface{}, *log.Logger, string) (pl.IDevice, error))
 	if !ok {
 		return errors.New("Failed to load Plugin")
 	}

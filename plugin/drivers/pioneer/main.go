@@ -7,10 +7,11 @@ import (
 	"github.com/mitchellh/mapstructure"
 	pl "github.com/roderm/audio-panel/plugin/iface"
 	"io/ioutil"
+	"log"
 	"os"
 )
 
-func NewDriver(ctx context.Context, config interface{}, identifier string) (pl.IDevice, error) {
+func NewDriver(ctx context.Context, config interface{}, lgr *log.Logger, identifier string) (pl.IDevice, error) {
 	var conf PioneerConfig
 	err := mapstructure.Decode(config, &conf)
 	if err != nil {
@@ -28,5 +29,5 @@ func NewDriver(ctx context.Context, config interface{}, identifier string) (pl.I
 	if err != nil {
 		return nil, fmt.Errorf("Bad Syntax in configfile(%s), wasn't able to parse json.", conf.Setup)
 	}
-	return NewPioneerDriver(ctx, conf, setup, identifier)
+	return NewPioneerDriver(ctx, conf, setup, lgr, identifier)
 }

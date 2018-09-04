@@ -38,22 +38,23 @@ type PioneerDriver struct {
 	console    *PioneerCaller
 	avr        *pb.Device
 	updateSubs []func(*pb.PropertyUpdate)
+	l          *log.Logger
 }
 
-func NewPioneerDriver(ctx context.Context, config PioneerConfig, cmdConfig CommandSet, id string) (pl.IDevice, error) {
+func NewPioneerDriver(ctx context.Context, config PioneerConfig, cmdConfig CommandSet, lg *log.Logger, id string) (pl.IDevice, error) {
 	p := &PioneerDriver{
 		ctx: ctx,
 		avr: &pb.Device{
 			Identifier: id,
-			//Zones: make(map[string]*pb.AVR_Zone),
 		},
+		l: lg,
 	}
 
 	port, err := strconv.Atoi(config.DevicePort)
 	if err != nil {
 		return nil, err
 	}
-	p.console, err = NewPioneerCaller(ctx, config.DeviceAddress, port)
+	p.console, err = NewPioneerCaller(ctx, config.DeviceAddress, port, p.l)
 	if err != nil {
 		return nil, err
 	}
@@ -93,11 +94,12 @@ func NewPioneerDriver(ctx context.Context, config PioneerConfig, cmdConfig Comma
 					p.console.Subscribe(resp, func(zone *pb.Item, prop *pb.Property, cmd string) func(interface{}) {
 						return func(val interface{}) {
 							if prop == nil {
+								p.l.Fatalf("Property for %s is nil", cmd)
 								return
 							}
 							nprop, err := p.newProperty(zone.Name, cmd, val)
 							if err != nil {
-								fmt.Println(err)
+								p.l.Fatalln(err)
 								return
 							}
 							prop.Value = nprop.Value
@@ -105,6 +107,7 @@ func NewPioneerDriver(ctx context.Context, config PioneerConfig, cmdConfig Comma
 								ItemIdentifier: zone.Identifier,
 								Property:       nprop,
 							})
+							p.l.Printf("New value received: Zone %s - Prop %s - %v \n", zone.Identifier, prop.Name, prop.Value)
 						}
 					}(pbZone, prop, cmd))
 				} else {
@@ -128,17 +131,17 @@ func (p *PioneerDriver) startTriggers() {
 				cycle, _ = strconv.Atoi(cycleStr)
 			}
 			if resp, ok := c.Command["get"]; ok {
-				go func() {
+				go func(command string, cycle int) {
 					for {
 						select {
 						case <-p.ctx.Done():
 							return
 						default:
-							p.console.Send(resp)
+							p.console.Send(command)
 							time.Sleep(time.Second * time.Duration(cycle))
 						}
 					}
-				}()
+				}(resp, cycle)
 			}
 		}
 	}
@@ -165,7 +168,7 @@ func (p *PioneerDriver) newProperty(zone string, cmd string, value interface{}) 
 					min, min_err := strconv.Atoi(min)
 					max, max_err := strconv.Atoi(max)
 					if min_err == nil && max_err == nil {
-						return &pb.Property{Name: cmd, Value: &pb.Property_Decimal{Decimal: float32(((max - min) / 100) * toInt(value))}}, nil
+						return &pb.Property{Name: cmd, Value: &pb.Property_Decimal{Decimal: (float32(float64(100)/float64(max-min)) * float32(toInt(value)))}}, nil
 					}
 				}
 				return nil, fmt.Errorf("min or max not properly set for %s", cmd)
@@ -207,6 +210,15 @@ func (p *PioneerDriver) sendCommand(command string, value interface{}) {
 }
 
 func (p *PioneerDriver) notifyUpdate(u *pb.PropertyUpdate) {
+	pbZ, err := p.getPbZone(u.ItemIdentifier)
+	if err != nil {
+		p.l.Fatalf("No zone found %s \n", u.ItemIdentifier)
+	}
+	for _, prop := range pbZ.Properties {
+		if prop.Name == u.Property.Name {
+			prop = u.Property
+		}
+	}
 	for _, f := range p.updateSubs {
 		go f(u)
 	}
