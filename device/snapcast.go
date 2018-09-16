@@ -59,3 +59,25 @@ type query struct {
 	Name         string `json:"name"`
 	Sampleformat string `json:"sampleformat"`
 }
+
+/*
+	{
+		"groups": [{
+			"clients":[{
+				"config":{
+					"instance":2,
+					"latency":6,
+					"name":"123 456",
+					"volume":{"muted":false,"percent":48}
+				},
+				"connected":true,
+				"host":{
+					"arch":"x86_64",
+					"ip":"127.0.0.1",
+					"mac":"00:21:6a:7d:74:fc",
+					"name":"T400",
+					"os":"Linux Mint 17.3 Rosa"
+				},
+				"id":"00:21:6a:7d:74:fc#2",
+				"lastSeen":{"sec":1488025751,"usec":654777},"snapclient":{"name":"Snapclient","protocolVersion":2,"version":"0.10.0"}}],"id":"4dcc4e3b-c699-a04b-7f0c-8260d23c43e1","muted":false,"name":"","stream_id":"stream 2"}],"server":{"host":{"arch":"x86_64","ip":"","mac":"","name":"T400","os":"Linux Mint 17.3 Rosa"},"snapserver":{"controlProtocolVersion":1,"name":"Snapserver","protocolVersion":1,"version":"0.10.0"}},"streams":[{"id":"stream 1","status":"idle","uri":{"fragment":"","host":"","path":"/tmp/snapfifo","query":{"buffer_ms":"20","codec":"flac","name":"stream 1","sampleformat":"48000:16:2"},"raw":"pipe:///tmp/snapfifo?name=stream 1","scheme":"pipe"}},{"id":"stream 2","status":"idle","uri":{"fragment":"","host":"","path":"/tmp/snapfifo","query":{"buffer_ms":"20","codec":"flac","name":"stream 2","sampleformat":"48000:16:2"},"raw":"pipe:///tmp/snapfifo?name=stream 2","scheme":"pipe"}}]}
+*/
