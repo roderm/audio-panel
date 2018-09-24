@@ -80,9 +80,23 @@ message Property {
         int64 Number = 3;
         float Decimal = 4;
         string Text = 5;
+        ValueList List = 6;
     }
 }
-
+message ValueList {
+    string KeyActive = 1;
+    repeated ListValue Values = 2; 
+}
+message ListValue {
+    string Key = 1;
+    bool Active = 2;
+    oneof Value {
+        bool Boolean = 3;
+        int64 Number = 4;
+        float Decimal = 5;
+        string Text = 6;
+    }
+}
 message PropertyUpdate {
     string DeviceIdentifier = 1;
     string ItemIdentifier = 2;

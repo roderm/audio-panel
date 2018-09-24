@@ -1,5 +1,5 @@
 import React from "react";
-import { Segment, Button, Grid, Icon, Input } from 'semantic-ui-react'
+import { Segment, Button, Grid, Icon, Input, Dropdown } from 'semantic-ui-react'
 import Slider from 'rc-slider';
 import WebsocketApi from "../js/websocket.api"
 import 'rc-slider/assets/index.css';
@@ -60,6 +60,32 @@ class Empty extends React.Component {
         return <p style={{hidden: true}}></p>
     }
 }
+
+class DropDownList extends React.Component {
+    constructor(props) {
+        super(props)
+        let { property, style, ...other } = props
+        this.state = { property, style, other }
+    }
+    componentWillReceiveProps(nextProps) {
+        const { property } = nextProps
+        this.setState({ property })
+    }
+    onChange(e, { name, value }) {
+        let prop = {
+            Name: this.state.property.Name,
+            Value: {Text: value}
+        }
+        this.props.onUpdate(prop)
+    }
+    render () {
+        let options = [];
+        this.state.property.Value.List.Values.forEach(element => {
+            options.push({key: element.Key, value: element.Key, text: element.Value.Text})
+        });
+        return <Dropdown options={options} value={this.state.property.Value.List.KeyActive} style={this.state.style} onChange={this.onChange.bind(this)}/>
+    }
+}
 class AvrItem extends React.Component {
     constructor(props) {
         super(props)
@@ -83,6 +109,12 @@ class AvrItem extends React.Component {
             },
             "treble": {
                 "component": PercentageSlider, "css": { order: 31, "flex-basis": "10rem" }
+            },
+            "input": {
+                "component": DropDownList, "css": { order: 20, "flex-basis": "10rem" }
+            },
+            "listening_mod": {
+                "component": DropDownList, "css": { order: 21, "flex-basis": "10rem" }
             }
         }
     }

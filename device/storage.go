@@ -25,6 +25,7 @@ type DeviceStore struct {
 	DevicePlugins map[string]func(context.Context, interface{}, *log.Logger, string) (pl.IDevice, error)
 	devices       map[string]pl.IDevice
 	updateSubs    []func(*pb.PropertyUpdate)
+	newSubs       []func(*pb.Device)
 }
 
 func NewDeviceStore(ctx context.Context) *DeviceStore {
@@ -37,6 +38,12 @@ func NewDeviceStore(ctx context.Context) *DeviceStore {
 
 func (d *DeviceStore) notifySubscritions(dev *pb.PropertyUpdate) {
 	for _, s := range d.updateSubs {
+		s(dev)
+	}
+}
+
+func (d *DeviceStore) notifyNew(dev *pb.Device) {
+	for _, s := range d.newSubs {
 		s(dev)
 	}
 }
@@ -70,6 +77,7 @@ func (d *DeviceStore) AddDevice(config DeviceConfig) (string, error) {
 		}
 	}(did))
 	d.devices[did] = device
+	d.notifyNew(device.GetDevice())
 	return did, err
 }
 
@@ -79,6 +87,10 @@ func (d *DeviceStore) GetReceivers() map[string]pl.IDevice {
 
 func (d *DeviceStore) SubscribeUpdate(f func(*pb.PropertyUpdate)) {
 	d.updateSubs = append(d.updateSubs, f)
+}
+
+func (d *DeviceStore) SubscribeNew(f func(*pb.Device)) {
+	d.newSubs = append(d.newSubs, f)
 }
 
 func (d *DeviceStore) addPlugin(path string) error {
