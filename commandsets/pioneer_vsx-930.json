@@ -37,14 +37,16 @@
                     "up": "FU",
                     "down": "FD",
                     "response": "FN##",
-                    "datatype": "string",
+                    "datatype": "list",
+                    "value_list": "input_sources",
                     "pullcycle": "600"
                 },
                 "listening_mod": {
                     "get": "?S",
                     "set": "####SR",
                     "response": "SR####",
-                    "datatype": "string",
+                    "datatype": "list",
+                    "value_list": "listening_mods",
                     "pullcycle": "600"
                 },
                 "bass": {
@@ -103,7 +105,8 @@
                 "input": {
                     "get": "?ZEA",
                     "set": "##ZEA",
-                    "datatype": "string",
+                    "datatype": "list",
+                    "list": "input_sources",
                     "response": "ZEA##",
                     "pullcycle": "600"
                 }

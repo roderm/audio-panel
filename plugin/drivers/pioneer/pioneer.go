@@ -38,6 +38,7 @@ type PioneerDriver struct {
 	console    *PioneerCaller
 	avr        *pb.Device
 	updateSubs []func(*pb.PropertyUpdate)
+	cmdSet     CommandSet
 	l          *log.Logger
 }
 
@@ -47,7 +48,8 @@ func NewPioneerDriver(ctx context.Context, config PioneerConfig, cmdConfig Comma
 		avr: &pb.Device{
 			Identifier: id,
 		},
-		l: lg,
+		cmdSet: cmdConfig,
+		l:      lg,
 	}
 
 	port, err := strconv.Atoi(config.DevicePort)
@@ -172,6 +174,28 @@ func (p *PioneerDriver) newProperty(zone string, cmd string, value interface{}) 
 					}
 				}
 				return nil, fmt.Errorf("min or max not properly set for %s", cmd)
+			case "list":
+				l := &pb.ValueList{KeyActive: value.(string)}
+				switch command.Command["list"] {
+				case "input_sources":
+					for _, v := range p.cmdSet.InputSources {
+						nv := pb.ListValue{Key: v.Code, Value: &pb.ListValue_Text{Text: v.GetName()}}
+						if nv.Key == value.(string) {
+							nv.Active = true
+						}
+						l.Values = append(l.Values, &nv)
+					}
+				case "listening_mods":
+					for _, v := range p.cmdSet.ListenMods {
+						nv := pb.ListValue{Key: v.Code, Value: &pb.ListValue_Text{Text: v.GetName()}}
+						if nv.Key == value.(string) {
+							nv.Active = true
+						}
+						l.Values = append(l.Values, &nv)
+					}
+				}
+
+				return &pb.Property{Name: cmd, Value: &pb.Property_List{List: l}}, nil
 			default:
 				return nil, fmt.Errorf("Unknown datatype %s", datatype)
 			}
@@ -298,7 +322,7 @@ func (p *PioneerDriver) PropertyUpdate(u *pb.PropertyUpdate) error {
 				return p.setPercentage(z, &zoneProperty, prop.GetDecimal())
 			case "number":
 				return p.set(z, prop.GetName(), prop.GetNumber())
-			case "string":
+			case "string", "list":
 				return p.set(z, prop.GetName(), prop.GetText())
 			default:
 				return fmt.Errorf("Unknown datatype \"%s\"", dt)
