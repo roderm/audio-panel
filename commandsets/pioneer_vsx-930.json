@@ -106,7 +106,7 @@
                     "get": "?ZEA",
                     "set": "##ZEA",
                     "datatype": "list",
-                    "list": "input_sources",
+                    "value_list": "input_sources",
                     "response": "ZEA##",
                     "pullcycle": "600"
                 }
@@ -123,6 +123,7 @@
 	    {"Code": "25", "Name": "BD"}
     ],
     "listening_mods": [
-        {"Code": "0041", "Name": "Extended Stereo"}
+        {"Code": "0041", "Name": "Extended Stereo"},
+        {"Code": "*", "Name": "Uknown"}
     ]
 }

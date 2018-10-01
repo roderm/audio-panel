@@ -175,27 +175,32 @@ func (p *PioneerDriver) newProperty(zone string, cmd string, value interface{}) 
 				}
 				return nil, fmt.Errorf("min or max not properly set for %s", cmd)
 			case "list":
-				l := &pb.ValueList{KeyActive: value.(string)}
-				switch command.Command["list"] {
-				case "input_sources":
-					for _, v := range p.cmdSet.InputSources {
-						nv := pb.ListValue{Key: v.Code, Value: &pb.ListValue_Text{Text: v.GetName()}}
-						if nv.Key == value.(string) {
-							nv.Active = true
+				{
+					var err error = nil
+					l := &pb.ValueList{KeyActive: value.(string)}
+					switch command.Command["value_list"] {
+					case "input_sources":
+						for _, v := range p.cmdSet.InputSources {
+							nv := pb.ListValue{Key: v.Code, Value: &pb.ListValue_Text{Text: v.GetName()}}
+							if nv.Key == value.(string) {
+								nv.Active = true
+							}
+							l.Values = append(l.Values, &nv)
 						}
-						l.Values = append(l.Values, &nv)
-					}
-				case "listening_mods":
-					for _, v := range p.cmdSet.ListenMods {
-						nv := pb.ListValue{Key: v.Code, Value: &pb.ListValue_Text{Text: v.GetName()}}
-						if nv.Key == value.(string) {
-							nv.Active = true
+					case "listening_mods":
+						for _, v := range p.cmdSet.ListenMods {
+							nv := pb.ListValue{Key: v.Code, Value: &pb.ListValue_Text{Text: v.GetName()}}
+							if nv.Key == value.(string) {
+								nv.Active = true
+							}
+							l.Values = append(l.Values, &nv)
 						}
-						l.Values = append(l.Values, &nv)
+						p.l.Printf("Listenmods %v", l)
+					default:
+						err = fmt.Errorf("No list found for %s", command.Command["value_list"])
 					}
+					return &pb.Property{Name: cmd, Value: &pb.Property_List{List: l}}, err
 				}
-
-				return &pb.Property{Name: cmd, Value: &pb.Property_List{List: l}}, nil
 			default:
 				return nil, fmt.Errorf("Unknown datatype %s", datatype)
 			}

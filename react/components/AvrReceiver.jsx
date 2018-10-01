@@ -65,7 +65,18 @@ class DropDownList extends React.Component {
     constructor(props) {
         super(props)
         let { property, style, ...other } = props
-        this.state = { property, style, other }
+        let options = [];
+        let activeKey = "none"
+        if(!property.Value){
+            options.push({key: "none", value: "none", text: "unknown"})
+            console.log("Received empty value list")
+        }else{
+            property.Value.List.Values.forEach(element => {
+                options.push({key: element.Key, value: element.Key, text: element.Value.Text})
+            });
+            activeKey = property.Value.List.KeyActive
+        }
+        this.state = { property, style, other, options, activeKey }
     }
     componentWillReceiveProps(nextProps) {
         const { property } = nextProps
@@ -79,11 +90,7 @@ class DropDownList extends React.Component {
         this.props.onUpdate(prop)
     }
     render () {
-        let options = [];
-        this.state.property.Value.List.Values.forEach(element => {
-            options.push({key: element.Key, value: element.Key, text: element.Value.Text})
-        });
-        return <Dropdown options={options} value={this.state.property.Value.List.KeyActive} style={this.state.style} onChange={this.onChange.bind(this)}/>
+        return <Dropdown options={this.state.options} value={this.state.activeKey} style={this.state.style} onChange={this.onChange.bind(this)}/>
     }
 }
 class AvrItem extends React.Component {
