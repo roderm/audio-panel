@@ -2,83 +2,112 @@ package device
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	pb "github.com/roderm/audio-panel/proto"
-	"io/ioutil"
 	"log"
 	"os"
+	"plugin"
 	"sync"
+
+	pb "github.com/roderm/audio-panel-protobuf/go/msg/device"
+	pl "github.com/roderm/audio-panel/plugin/iface"
 )
 
 var deviceId int = 0
 var lock sync.Mutex
 
+type DeviceConfig struct {
+	DriverPath string      `json:"driver"`
+	PluginType string      `json:"type"`
+	Config     interface{} `json:"config"`
+}
 type DeviceStore struct {
-	ctx        context.Context
-	devs       []IDevice
-	updateSubs []func(*pb.AVR)
+	ctx           context.Context
+	DevicePlugins map[string]func(context.Context, interface{}, *log.Logger, string) (pl.IDevice, error)
+	devices       map[string]pl.IDevice
+	updateSubs    []func(*pb.PropertyUpdate)
+	newSubs       []func(*pb.Device)
 }
 
 func NewDeviceStore(ctx context.Context) *DeviceStore {
-	return &DeviceStore{ctx: ctx}
+	return &DeviceStore{
+		ctx:           ctx,
+		DevicePlugins: make(map[string]func(context.Context, interface{}, *log.Logger, string) (pl.IDevice, error)),
+		devices:       make(map[string]pl.IDevice),
+	}
 }
 
-func (d *DeviceStore) notifySubscritions(dev *pb.AVR, id int64) {
-	dev.Id = int64(id)
+func (d *DeviceStore) notifySubscritions(dev *pb.PropertyUpdate) {
 	for _, s := range d.updateSubs {
 		s(dev)
 	}
 }
-func (d *DeviceStore) AddDevice(config DeviceConfig) (int, error) {
-	device, err := createDevice(d.ctx, config)
-	if err != nil {
-		log.Panicf("Couldn't create device: %s", err.Error())
-		return 0, err
+
+func (d *DeviceStore) notifyNew(dev *pb.Device) {
+	for _, s := range d.newSubs {
+		s(dev)
 	}
+}
+func (d *DeviceStore) AddDevice(config DeviceConfig) (string, error) {
+	var err error
 	lock.Lock()
-	deviceId = +1
-	avr := device.GetAvr()
-	avr.Id = int64(deviceId)
-	lock.Unlock()
-	updateFunc := func(dev *pb.AVR) {
-		d.notifySubscritions(dev, avr.Id)
+	defer lock.Unlock()
+	getId := func() int64 {
+		deviceId += 1
+		return int64(deviceId)
 	}
-	device.OnUpdate(updateFunc)
-	d.devs = append(d.devs, device)
-	// trigger new device
-	updateFunc(avr)
-	return int(avr.Id), nil
+	// Check if plugin is loaded
+
+	if _, ok := d.DevicePlugins[config.DriverPath]; !ok {
+		err = d.addPlugin(config.DriverPath)
+		if err != nil {
+			return "", err
+		}
+	}
+	cid := getId()
+	did := fmt.Sprintf("Device_%d", cid)
+	lg := log.New(os.Stdout, config.DriverPath, log.Ltime)
+	device, err := d.DevicePlugins[config.DriverPath](d.ctx, config.Config, lg, did)
+	if err != nil {
+		return did, err
+	}
+	device.OnUpdate(func(id string) func(*pb.PropertyUpdate) {
+		return func(update *pb.PropertyUpdate) {
+			update.DeviceIdentifier = id
+			d.notifySubscritions(update)
+		}
+	}(did))
+	d.devices[did] = device
+	d.notifyNew(device.GetDevice())
+	return did, err
 }
 
-func (d *DeviceStore) GetDevices() []IDevice {
-	return d.devs
+func (d *DeviceStore) GetReceivers() map[string]pl.IDevice {
+	return d.devices
 }
 
-func (d *DeviceStore) SubscribeUpdate(f func(*pb.AVR)) {
+func (d *DeviceStore) SubscribeUpdate(f func(*pb.PropertyUpdate)) {
 	d.updateSubs = append(d.updateSubs, f)
 }
 
-func createDevice(ctx context.Context, config DeviceConfig) (IDevice, error) {
-	if _, err := os.Stat(config.Setup); err != nil {
-		return nil, fmt.Errorf("path to configfile(%s) not found.", config.Setup)
+func (d *DeviceStore) SubscribeNew(f func(*pb.Device)) {
+	d.newSubs = append(d.newSubs, f)
+}
+
+func (d *DeviceStore) addPlugin(path string) error {
+	plug, err := plugin.Open(path)
+	if err != nil {
+		return err
+	}
+	sym, err := plug.Lookup("NewDriver")
+	if err != nil {
+		return err
 	}
 
-	fileContent, err := ioutil.ReadFile(config.Setup)
-	if err != nil {
-		return nil, fmt.Errorf("Couldn't read configfile(%s).", config.Setup)
+	newFunc, ok := sym.(func(context.Context, interface{}, *log.Logger, string) (pl.IDevice, error))
+	if !ok {
+		return errors.New("Failed to load Plugin")
 	}
-	var setup CommandSet
-	err = json.Unmarshal(fileContent, &setup)
-	if err != nil {
-		return nil, fmt.Errorf("Bad Syntax in configfile(%s), wasn't able to parse json.", config.Setup)
-	}
-
-	switch setup.Driver {
-	case "pioneer":
-		return NewPioneerDriver(ctx, config, setup)
-	default:
-		return nil, errors.New("No device configured")
-	}
+	d.DevicePlugins[path] = newFunc
+	return nil
 }

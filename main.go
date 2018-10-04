@@ -4,15 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/contrib/static"
-	"github.com/gin-gonic/gin"
-	"github.com/roderm/audio-panel/api"
-	"github.com/roderm/audio-panel/device"
-	jws "github.com/roderm/json-rpc/websocket"
-	"golang.org/x/net/websocket"
 	"io/ioutil"
+	"log"
+	"net"
 	"os"
 	"path/filepath"
+
+	"github.com/roderm/audio-panel/device"
+	"github.com/roderm/audio-panel/grpc"
 )
 
 type Config struct {
@@ -24,26 +23,42 @@ func main() {
 	conf := readConfig()
 	ds := device.NewDeviceStore(context.Background())
 	for _, dev := range conf.Devices {
-		go ds.AddDevice(dev)
+		go func(dev device.DeviceConfig) {
+			id, err := ds.AddDevice(dev)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Printf("New device added with id %s \n", id)
+			}
+		}(dev)
 	}
-	wsHandler := jws.NewHandler(context.Background())
-	api.AddDeviceApi(wsHandler, ds)
-	// Set the router as the default one shipped with Gin
-	router := gin.Default()
-	// Serve frontend static files
-	tpls, _ := os.Stat(conf.TplPath)
-	if tpls.IsDir() {
-		router.Use(static.Serve("/", static.LocalFile(conf.TplPath, true)))
-	} else {
-		fmt.Println("No filesystem is served")
+
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", 3000))
+	grpcServer := grpc.NewGrpcInstance()
+	grpcServer.Serve(lis)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
 	}
-	// Setup route group for the API
-	router.GET("/api", func(c *gin.Context) {
-		handler := websocket.Handler(wsHandler.Handle)
-		handler.ServeHTTP(c.Writer, c.Request)
-	})
-	// Start and run the server
-	router.Run(":3000")
+	/*
+		wsHandler := jws.NewHandler(context.Background())
+		api.AddApi(wsHandler, ds)
+		// Set the router as the default one shipped with Gin
+		router := gin.Default()
+		// Serve frontend static files
+		tpls, _ := os.Stat(conf.TplPath)
+		if tpls.IsDir() {
+			router.Use(static.Serve("/", static.LocalFile(conf.TplPath, true)))
+		} else {
+			fmt.Println("No filesystem is served")
+		}
+		// Setup route group for the API
+		router.GET("/api", func(c *gin.Context) {
+			handler := websocket.Handler(wsHandler.Handle)
+			handler.ServeHTTP(c.Writer, c.Request)
+		})
+		// Start and run the server
+		router.Run(":3000")
+	*/
 }
 
 func readConfig() Config {

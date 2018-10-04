@@ -1,9 +1,10 @@
-package telnet
+package main
 
 import (
 	"context"
 	"fmt"
 	"github.com/ziutek/telnet"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -23,14 +24,16 @@ type PioneerCaller struct {
 	subs         map[string][]subscription
 	subsIds      int
 	idLock       sync.Mutex
+	l            *log.Logger
 }
 
-func NewPioneerCaller(ctx context.Context, host string, port int) (*PioneerCaller, error) {
+func NewPioneerCaller(ctx context.Context, host string, port int, lg *log.Logger) (*PioneerCaller, error) {
 	var err error
 	ret := &PioneerCaller{
 		ctx:          ctx,
 		subs:         make(map[string][]subscription),
 		sendCommands: make(chan string),
+		l:            lg,
 	}
 	addr := fmt.Sprintf("%s:%s", host, strconv.Itoa(port))
 	ret.conn, err = telnet.Dial("tcp", addr)
@@ -83,12 +86,12 @@ func (c *PioneerCaller) StartListen() {
 				command := []byte(fmt.Sprintf("%s\n\r", cmd))
 				n, err := c.conn.Write(command)
 				if err != nil {
-					fmt.Println(err)
+					log.Fatalln(err)
 					continue
 				}
 				if expected, actual := int64(len(command)), n; int(expected) != actual {
 					err := fmt.Errorf("Transmission problem: tried sending %d bytes, but actually only sent %d bytes.", expected, actual)
-					fmt.Printf(err.Error())
+					log.Fatalln(err.Error())
 					return
 				}
 				time.Sleep(time.Second)
@@ -129,7 +132,7 @@ func (c *PioneerCaller) Send(command string) {
 }
 
 func (c *PioneerCaller) unload() {
-	fmt.Println("Dead of telnet")
+	log.Panicln("Dead of telnet")
 	c.conn.Close()
 }
 

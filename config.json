@@ -2,16 +2,35 @@
     "viewspath": "./views",
     "devices":[
         {
-            "driver": "pioner",
-            "command_set": "./commandsets/pioneer_vsx-930.json",
-            "device_address": "192.168.178.28",
-            "device_port": "8102"
+            "driver": "{{Path}}/pioneer.so",
+            "config":{
+                "Setup": "./commandsets/pioneer_vsx-930.json",
+                "DeviceAddress": "192.168.178.28",
+                "DevicePort": "8102"   
+            }
+        },{
+            "driver": "{{Path}}/nanoleaf.so",
+            "config": {
+                "AuthToken": "",
+                "DeviceAddress": "",
+                "DevicePort":"",
+                "Pullcycle": 20
+            }
+        },{
+            "driver": "{{Path}}/snapcast.so",
+            "config": {
+                "DeviceAddress": "",
+                "DevicePort":""
+            }
         },
         {
-            "driver": "nanoleaf",
+            "driver": "./build/linux/drivers/nanoleaf.so",
+            "type": "light",
             "config": {
-                "auth-token": "",
-                "pullcycle": 20
+                "AuthToken": "sJqn6voKKz1Ted7eZGth3rUzEB6u7NkN",
+                "DeviceAddress": "192.168.178.38",
+                "DevicePort":"16021",
+                "Pullcycle": 20
             }
         }
     ]
